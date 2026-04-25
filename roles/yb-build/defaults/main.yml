@@ -1,6 +1,6 @@
 ---
 yb_version: "2025.2.2.2"
-yb_shipper_image: "ghcr.io/null-ptr-exception/yb-shipper:{{ yb_version }}"
+yb_shipper_image: "ghcr.io/null-ptr-exception/yb-shipper:{{ yb_version }}-ec87cb7db19db24fffa53a6cea7479b1b6262e54"
 yb_install_dir: /opt/yugabyte
 yb_user: yugabyte
 yb_group: yugabyte

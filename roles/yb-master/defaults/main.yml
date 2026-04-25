@@ -1,0 +1,9 @@
+---
+yb_install_dir: /opt/yugabyte
+yb_data_dir: /data/yugabyte
+yb_user: yugabyte
+yb_group: yugabyte
+
+yb_master_rpc_port: 7100
+yb_master_web_port: 7000
+yb_replication_factor: 3

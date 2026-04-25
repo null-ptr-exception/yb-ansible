@@ -1,0 +1,90 @@
+---
+- name: Install podman and node-exporter
+  ansible.builtin.apt:
+    name:
+      - podman
+      - prometheus-node-exporter
+    state: present
+    update_cache: true
+
+- name: Create yugabyte group
+  ansible.builtin.group:
+    name: "{{ yb_group }}"
+    system: true
+
+- name: Create yugabyte user
+  ansible.builtin.user:
+    name: "{{ yb_user }}"
+    group: "{{ yb_group }}"
+    system: true
+    shell: /usr/sbin/nologin
+    home: "{{ yb_install_dir }}"
+    create_home: false
+
+- name: Create install directory
+  ansible.builtin.file:
+    path: "{{ yb_install_dir }}"
+    state: directory
+    owner: "{{ yb_user }}"
+    group: "{{ yb_group }}"
+    mode: "0755"
+
+- name: Check if YB is already installed
+  ansible.builtin.stat:
+    path: "{{ yb_install_dir }}/bin/yb-master"
+  register: yb_installed
+
+- name: Pull YB shipper image
+  ansible.builtin.command:
+    cmd: podman pull {{ yb_shipper_image }}
+  register: podman_pull
+  changed_when: "'Already exists' not in podman_pull.stdout"
+  when: not yb_installed.stat.exists
+
+- name: Create temporary container from shipper image
+  ansible.builtin.command:
+    cmd: podman create --name yb-shipper-tmp {{ yb_shipper_image }}
+  changed_when: true
+  when: not yb_installed.stat.exists
+
+- name: Copy tarball from container
+  ansible.builtin.command:
+    cmd: podman cp yb-shipper-tmp:/tarball/yugabyte.tar.gz /tmp/yugabyte.tar.gz
+  changed_when: true
+  when: not yb_installed.stat.exists
+
+- name: Remove temporary container
+  ansible.builtin.command:
+    cmd: podman rm yb-shipper-tmp
+  changed_when: true
+  when: not yb_installed.stat.exists
+
+- name: Extract YugabyteDB tarball
+  ansible.builtin.unarchive:
+    src: /tmp/yugabyte.tar.gz
+    dest: "{{ yb_install_dir }}"
+    remote_src: true
+    owner: "{{ yb_user }}"
+    group: "{{ yb_group }}"
+    extra_opts:
+      - --strip-components=1
+  when: not yb_installed.stat.exists
+
+- name: Clean up tarball
+  ansible.builtin.file:
+    path: /tmp/yugabyte.tar.gz
+    state: absent
+  when: not yb_installed.stat.exists
+
+- name: Run post_install.sh
+  ansible.builtin.command:
+    cmd: ./bin/post_install.sh
+    chdir: "{{ yb_install_dir }}"
+    creates: "{{ yb_install_dir }}/.post_install.sh.completed"
+  become_user: "{{ yb_user }}"
+
+- name: Enable and start node-exporter
+  ansible.builtin.systemd:
+    name: prometheus-node-exporter
+    state: started
+    enabled: true

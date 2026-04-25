@@ -1,0 +1,27 @@
+[Unit]
+Description=YugabyteDB TServer
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User={{ yb_user }}
+Group={{ yb_group }}
+ExecStart={{ yb_install_dir }}/bin/yb-tserver \
+  --tserver_master_addrs={{ yb_master_addresses }} \
+  --rpc_bind_addresses=0.0.0.0:{{ yb_tserver_rpc_port }} \
+  --webserver_port={{ yb_tserver_web_port }} \
+  --pgsql_proxy_bind_address=0.0.0.0:{{ db_port }} \
+  --fs_data_dirs={{ yb_data_dir }}/tserver{% if yb_tserver_flags %} \
+{% for flag, value in yb_tserver_flags.items() %}
+  --{{ flag }}={{ value }}{{ ' \\' if not loop.last else '' }}
+{% endfor %}
+{% endif %}
+
+Restart=on-failure
+RestartSec=10
+LimitNOFILE=65536
+LimitCORE=infinity
+
+[Install]
+WantedBy=multi-user.target

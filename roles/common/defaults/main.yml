@@ -1,0 +1,6 @@
+---
+yb_version: "2025.2.2.1"
+yb_shipper_image: "yb-shipper:{{ yb_version }}"
+yb_install_dir: /opt/yugabyte
+yb_user: yugabyte
+yb_group: yugabyte

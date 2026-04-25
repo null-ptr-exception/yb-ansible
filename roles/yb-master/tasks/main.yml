@@ -1,0 +1,30 @@
+---
+- name: Derive master_addresses from inventory
+  ansible.builtin.set_fact:
+    yb_master_addresses: >-
+      {{ groups['masters']
+         | map('regex_replace', '$', ':' ~ yb_master_rpc_port)
+         | join(',') }}
+  when: yb_master_addresses is not defined
+
+- name: Create master data directory
+  ansible.builtin.file:
+    path: "{{ yb_data_dir }}/master"
+    state: directory
+    owner: "{{ yb_user }}"
+    group: "{{ yb_group }}"
+    mode: "0755"
+
+- name: Install yb-master systemd unit
+  ansible.builtin.template:
+    src: yb-master.service.j2
+    dest: /etc/systemd/system/yb-master.service
+    mode: "0644"
+  notify: restart yb-master
+
+- name: Enable and start yb-master
+  ansible.builtin.systemd:
+    name: yb-master
+    state: started
+    enabled: true
+    daemon_reload: true

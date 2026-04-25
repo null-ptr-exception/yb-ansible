@@ -1,0 +1,18 @@
+---
+- name: Common prerequisites on all nodes
+  hosts: all
+  become: true
+  roles:
+    - common
+
+- name: Deploy YB masters
+  hosts: masters
+  become: true
+  roles:
+    - yb-master
+
+- name: Deploy YB tservers
+  hosts: tservers
+  become: true
+  roles:
+    - yb-tserver

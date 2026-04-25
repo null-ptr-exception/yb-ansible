@@ -1,9 +1,8 @@
 ---
-- name: Install podman and node-exporter
+- name: Install podman
   ansible.builtin.apt:
     name:
       - podman
-      - prometheus-node-exporter
     state: present
     update_cache: true
 
@@ -28,19 +27,3 @@
     owner: "{{ yb_user }}"
     group: "{{ yb_group }}"
     mode: "0755"
-
-- name: Configure node-exporter port
-  ansible.builtin.lineinfile:
-    path: /etc/default/prometheus-node-exporter
-    regexp: '^ARGS='
-    line: 'ARGS="--web.listen-address=:{{ node_exporter_port }}"'
-  notify: restart node-exporter
-
-- name: Enable and start node-exporter
-  ansible.builtin.systemd:
-    name: prometheus-node-exporter
-    state: started
-    enabled: true
-
-- name: Verify common role
-  ansible.builtin.import_tasks: verify.yml

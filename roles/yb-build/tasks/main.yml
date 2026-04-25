@@ -66,11 +66,25 @@
     state: absent
   when: not yb_installed.stat.exists
 
+- name: Check if post_install.sh has been run
+  ansible.builtin.stat:
+    path: "{{ yb_install_dir }}/.post_install_done"
+  register: post_install_done
+
 - name: Run post_install.sh
   ansible.builtin.command:
     cmd: ./bin/post_install.sh
     chdir: "{{ yb_install_dir }}"
-    creates: "{{ yb_install_dir }}/.post_install.sh.completed"
+  when: not post_install_done.stat.exists
+
+- name: Mark post_install.sh as completed
+  ansible.builtin.file:
+    path: "{{ yb_install_dir }}/.post_install_done"
+    state: touch
+    owner: "{{ yb_user }}"
+    group: "{{ yb_group }}"
+    mode: "0644"
+  when: not post_install_done.stat.exists
 
 - name: Verify yb-build role
   ansible.builtin.import_tasks: verify.yml

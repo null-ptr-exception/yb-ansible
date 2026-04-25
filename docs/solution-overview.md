@@ -13,21 +13,24 @@ Plain repo of roles (not an Ansible Galaxy collection):
 ```
 roles/
   common/
+  node-exporter/
   yb-build/
   yb-master/
   yb-tserver/
 site.yml
 verify.yml
+molecule/
 inventory.ini
 ```
 
 ## Scope
 
-Four roles:
+Five roles:
 
 | Role | Responsibility |
 |---|---|
-| `common` | Install shared prerequisites (podman, node-exporter, yugabyte user/group) |
+| `common` | Install shared prerequisites (podman, yugabyte user/group) |
+| `node-exporter` | Install Prometheus node-exporter from OCI image as a systemd service |
 | `yb-build` | Download and install YugabyteDB tarball via OCI shipper image, run `post_install.sh` |
 | `yb-master` | Deploy a YB master instance as a systemd service |
 | `yb-tserver` | Deploy a YB tserver instance as a systemd service |
@@ -61,10 +64,11 @@ testing only.
   │ master  │ │ tserver  │    │ tserver  │
   │ node    │ │ node 1   │    │ node N   │
   │         │ │          │    │          │
-  │ roles:  │ │ roles:   │    │ roles:   │
-  │ common  │ │ common   │    │ common   │
-  │ yb-build│ │ yb-build │    │ yb-build │
-  │ yb-master│ │ yb-tserver│   │ yb-tserver│
+  │ roles:  │ │ roles:      │    │ roles:      │
+  │ common  │ │ common      │    │ common      │
+  │ node-exp│ │ node-exp    │    │ node-exp    │
+  │ yb-build│ │ yb-build    │    │ yb-build    │
+  │ yb-master│ │ yb-tserver │    │ yb-tserver  │
   └─────────┘ └─────────┘    └─────────┘
 ```
 
@@ -74,10 +78,16 @@ Installs shared prerequisites on all nodes:
 
 - **podman** — container runtime for OCI image handling. Lightweight
   and daemonless.
-- **node-exporter** — `apt install prometheus-node-exporter` for basic
-  host metrics (CPU, memory, disk, network). Configured on port 9200
-  to avoid conflict with yb-tserver RPC default (9100).
 - **yugabyte user/group** — system account for running YB processes.
+
+### Role: node-exporter
+
+Installs Prometheus node-exporter from an OCI image:
+
+- Pulls `prom/node-exporter:v1.11.1-distroless` via podman
+- Extracts the binary to `/opt/node-exporter/`
+- Installs as a systemd service on port 9200 (avoids conflict with
+  yb-tserver RPC default 9100)
 
 ### Role: yb-build
 
@@ -95,7 +105,7 @@ installation directory. Without it, YB binaries may fail to find shared
 libraries at runtime.
 
 - Must be run from the real (non-symlinked) install path
-- Idempotent — creates a `.post_install.sh.completed` marker file
+- Idempotent — the role creates a `.post_install_done` marker file after successful execution
 - Must be re-run after upgrades
 
 ### Role: yb-master
@@ -147,7 +157,7 @@ Two complementary verification layers:
 Each role includes a `verify.yml` that runs at the end of deployment.
 If verification fails, the deployment fails immediately.
 
-- **common** — node-exporter listening and responding
+- **node-exporter** — node-exporter listening and responding on configured port
 - **yb-build** — YB binary exists at install path
 - **yb-master** — RPC/web ports listening, master API returns LEADER/FOLLOWER roles
 - **yb-tserver** — RPC/YSQL ports listening, health-check API returns 200, YSQL responds to `SELECT 1`
@@ -202,6 +212,7 @@ template.
 - hosts: all
   roles:
     - common
+    - node-exporter
     - yb-build
 
 - hosts: masters
@@ -218,10 +229,15 @@ template.
 ```yaml
 # YugabyteDB version and paths
 yb_version: "2025.2.2.2"
-yb_shipper_image: "ghcr.io/null-ptr-exception/yb-shipper:{{ yb_version }}"
+yb_shipper_image: "ghcr.io/null-ptr-exception/yb-shipper:{{ yb_version }}-<git-sha>"
 yb_install_dir: /opt/yugabyte
 yb_data_dir: /data/yugabyte
 yb_replication_factor: 3
+
+# Node-exporter
+node_exporter_version: "1.11.1"
+node_exporter_image: "docker.io/prom/node-exporter:v{{ node_exporter_version }}-distroless"
+node_exporter_port: 9200
 
 # Ports
 yb_master_rpc_port: 7100
@@ -229,7 +245,6 @@ yb_master_web_port: 7000
 yb_tserver_rpc_port: 9100
 yb_tserver_web_port: 9000
 db_port: 5433
-node_exporter_port: 9200
 ```
 
 ## Supported Platforms
@@ -241,5 +256,4 @@ node_exporter_port: 9200
 - Placement info (cloud/region/zone) for multi-DC and rack-aware deployments
 - Multiple `--fs_data_dirs` for tserver (multiple disks)
 - Upgrades / rolling restart playbook
-- Molecule tests for CI/pre-merge role testing
 - Ansible Galaxy collection packaging

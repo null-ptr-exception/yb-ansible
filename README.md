@@ -61,8 +61,14 @@ In production, masters and tservers should run on separate VMs.
 Installs shared prerequisites on all nodes:
 
 - **podman** — container runtime for OCI image handling
-- **node-exporter** — host metrics via `prometheus-node-exporter`
 - **yugabyte user/group** — system account for running YB processes
+
+### node-exporter
+
+Installs Prometheus node-exporter on all nodes via podman:
+
+- Pulls the `prom/node-exporter` OCI image and extracts the binary
+- Runs as a systemd service on port 9200 (avoids conflict with yb-tserver RPC default 9100)
 
 ### yb-build
 
@@ -90,8 +96,11 @@ Key variables:
 
 | Variable | Default | Description |
 |---|---|---|
-| `yb_version` | `2025.2.2.1` | YugabyteDB version |
-| `yb_shipper_image` | `yb-shipper:{{ yb_version }}` | OCI image containing the YB tarball |
+| `yb_version` | `2025.2.2.2` | YugabyteDB version |
+| `yb_shipper_image` | `ghcr.io/.../yb-shipper:{{ yb_version }}` | OCI image containing the YB tarball |
+| `node_exporter_version` | `1.11.1` | Node-exporter version |
+| `node_exporter_image` | `prom/node-exporter:v...-distroless` | Node-exporter OCI image |
+| `node_exporter_port` | `9200` | Node-exporter listen port |
 | `yb_install_dir` | `/opt/yugabyte` | Installation directory |
 | `yb_data_dir` | `/data/yugabyte` | Data directory |
 | `yb_replication_factor` | `3` | Replication factor |
@@ -112,10 +121,10 @@ yb_tserver_flags:
 
 ## Local Development VMs
 
-For local testing, `.vms/create-vms.sh` creates 6 VMs using libvirt/virsh:
+For local testing, `.vms/create-vms.sh` creates 4 VMs using libvirt/virsh:
 
-- 3 master VMs (1 vCPU, 512 MB RAM)
-- 3 tserver VMs (2 vCPU, 4 GB RAM)
+- 3 master VMs (1 vCPU, 1 GB RAM)
+- 1 tserver VM (2 vCPU, 2 GB RAM)
 
 Requires an Ubuntu 22.04 cloud image at the path specified in the script.
 

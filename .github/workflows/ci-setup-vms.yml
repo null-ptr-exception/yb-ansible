@@ -6,6 +6,8 @@ on:
 jobs:
   setup:
     runs-on: [self-hosted, nuc-rophy]
+    env:
+      LIBVIRT_DEFAULT_URI: qemu:///system
 
     steps:
       - uses: actions/checkout@v4

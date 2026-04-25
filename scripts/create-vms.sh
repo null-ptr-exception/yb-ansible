@@ -2,11 +2,18 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-BASE_IMG="${YB_VM_BASE_IMG:-${SCRIPT_DIR}/ubuntu-22.04-cloudimg.img}"
-VM_DIR="${YB_VM_DIR:-${SCRIPT_DIR}}"
+REPO_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
+BASE_IMG="${YB_VM_BASE_IMG:-${REPO_DIR}/.vms/ubuntu-22.04-cloudimg.img}"
+VM_DIR="${YB_VM_DIR:-${REPO_DIR}/.vms}"
 SSH_KEY="${YB_VM_SSH_KEY:-ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAINtJBZHaT6eSByrSE/min8SywDzig9Kou1Q5TwCPpsCD rophy}"
 
 mkdir -p "$VM_DIR"
+
+if [ ! -f "$BASE_IMG" ]; then
+  echo "Base image not found at $BASE_IMG, downloading..."
+  wget -q --show-progress -O "$BASE_IMG" \
+    https://cloud-images.ubuntu.com/releases/22.04/release/ubuntu-22.04-server-cloudimg-amd64.img
+fi
 
 create_vm() {
   local name=$1 vcpus=$2 ram_mb=$3 disk_gb=${4:-10}

@@ -29,15 +29,3 @@
     state: started
     enabled: true
     daemon_reload: true
-
-- name: Flush handlers
-  ansible.builtin.meta: flush_handlers
-
-- name: Wait for tserver to be ready after potential restart
-  ansible.builtin.wait_for:
-    port: "{{ yb_tserver_rpc_port }}"
-    host: 0.0.0.0
-    timeout: 30
-
-- name: Verify yb-tserver role
-  ansible.builtin.import_tasks: verify.yml

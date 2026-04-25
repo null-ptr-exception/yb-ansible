@@ -1,0 +1,40 @@
+---
+- name: Common prerequisites on all nodes
+  hosts: all
+  become: true
+  roles:
+    - common
+    - node-exporter
+    - yb-build
+
+- name: Deploy YB masters
+  hosts: masters
+  become: true
+  roles:
+    - yb-master
+
+- name: Verify YB masters
+  hosts: masters
+  become: false
+  gather_facts: false
+  tasks:
+    - name: Verify yb-master
+      ansible.builtin.include_role:
+        name: yb-master
+        tasks_from: verify.yml
+
+- name: Deploy YB tservers
+  hosts: tservers
+  become: true
+  roles:
+    - yb-tserver
+
+- name: Verify YB tservers
+  hosts: tservers
+  become: false
+  gather_facts: false
+  tasks:
+    - name: Verify yb-tserver
+      ansible.builtin.include_role:
+        name: yb-tserver
+        tasks_from: verify.yml

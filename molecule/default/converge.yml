@@ -1,20 +1,3 @@
 ---
-- name: Common prerequisites on all nodes
-  hosts: all
-  become: true
-  roles:
-    - common
-    - node-exporter
-    - yb-build
-
-- name: Deploy YB masters
-  hosts: masters
-  become: true
-  roles:
-    - yb-master
-
-- name: Deploy YB tservers
-  hosts: tservers
-  become: true
-  roles:
-    - yb-tserver
+- name: Deploy YugabyteDB
+  ansible.builtin.import_playbook: ../../deploy.yml

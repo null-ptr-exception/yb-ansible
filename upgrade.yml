@@ -1,0 +1,44 @@
+---
+- name: Common prerequisites on all nodes
+  hosts: all
+  become: true
+  roles:
+    - common
+    - node-exporter
+    - yb-build
+
+- name: Rolling upgrade YB masters
+  hosts: masters
+  become: true
+  serial: 1
+  roles:
+    - yb-master
+  post_tasks:
+    - name: Verify yb-master
+      ansible.builtin.include_role:
+        name: yb-master
+        tasks_from: verify.yml
+
+    - name: Pause before next master
+      ansible.builtin.pause:
+        seconds: 60
+        prompt: "Waiting 60s for cluster to stabilize before next master"
+      when: ansible_play_hosts_all.index(inventory_hostname) < (ansible_play_hosts_all | length - 1)
+
+- name: Rolling upgrade YB tservers
+  hosts: tservers
+  become: true
+  serial: 1
+  roles:
+    - yb-tserver
+  post_tasks:
+    - name: Verify yb-tserver
+      ansible.builtin.include_role:
+        name: yb-tserver
+        tasks_from: verify.yml
+
+    - name: Pause before next tserver
+      ansible.builtin.pause:
+        seconds: 60
+        prompt: "Waiting 60s for tablet load to rebalance before next tserver"
+      when: ansible_play_hosts_all.index(inventory_hostname) < (ansible_play_hosts_all | length - 1)

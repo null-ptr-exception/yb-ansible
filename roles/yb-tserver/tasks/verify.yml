@@ -1,0 +1,34 @@
+---
+- name: Wait for tserver RPC port
+  ansible.builtin.wait_for:
+    port: "{{ yb_tserver_rpc_port }}"
+    host: 0.0.0.0
+    timeout: 30
+
+- name: Wait for YSQL proxy port
+  ansible.builtin.wait_for:
+    port: "{{ db_port }}"
+    host: 0.0.0.0
+    timeout: 30
+
+- name: Query tserver health check
+  ansible.builtin.uri:
+    url: "http://127.0.0.1:{{ yb_tserver_web_port }}/api/v1/health-check"
+    return_content: true
+  register: health_response
+
+- name: Assert tserver health check passed
+  ansible.builtin.assert:
+    that: health_response.status == 200
+    fail_msg: "TServer health check failed"
+
+- name: Test YSQL connectivity
+  ansible.builtin.command:
+    cmd: "{{ yb_install_dir }}/bin/ysqlsh -h 127.0.0.1 -p {{ db_port }} -c 'SELECT 1;'"
+  changed_when: false
+  register: ysql_test
+
+- name: Assert YSQL responded
+  ansible.builtin.assert:
+    that: "'1' in ysql_test.stdout"
+    fail_msg: "YSQL did not respond to SELECT 1"

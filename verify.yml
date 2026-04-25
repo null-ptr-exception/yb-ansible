@@ -1,0 +1,173 @@
+---
+- name: Verify all nodes
+  hosts: all
+  become: false
+  gather_facts: false
+  vars:
+    yb_install_dir: /opt/yugabyte
+    node_exporter_port: 9200
+  tasks:
+    - name: Verify YB binary exists
+      ansible.builtin.stat:
+        path: "{{ yb_install_dir }}/bin/yb-master"
+      register: yb_binary
+
+    - name: Assert YB binary is present
+      ansible.builtin.assert:
+        that: yb_binary.stat.exists
+        fail_msg: "YugabyteDB binary not found at {{ yb_install_dir }}/bin/yb-master"
+
+    - name: Check node-exporter is listening
+      ansible.builtin.wait_for:
+        port: "{{ node_exporter_port }}"
+        host: 127.0.0.1
+        timeout: 10
+
+    - name: Verify node-exporter responds
+      ansible.builtin.uri:
+        url: "http://127.0.0.1:{{ node_exporter_port }}/metrics"
+        return_content: false
+      register: ne_response
+
+    - name: Assert node-exporter is healthy
+      ansible.builtin.assert:
+        that: ne_response.status == 200
+        fail_msg: "node-exporter not responding on port {{ node_exporter_port }}"
+
+- name: Verify masters
+  hosts: masters
+  become: false
+  gather_facts: false
+  vars:
+    yb_master_rpc_port: 7100
+    yb_master_web_port: 7000
+  tasks:
+    - name: Check yb-master service is active
+      ansible.builtin.command:
+        cmd: systemctl is-active yb-master
+      changed_when: false
+      become: true
+
+    - name: Check master RPC port is listening
+      ansible.builtin.wait_for:
+        port: "{{ yb_master_rpc_port }}"
+        host: 0.0.0.0
+        timeout: 10
+
+    - name: Check master web UI is reachable
+      ansible.builtin.wait_for:
+        port: "{{ yb_master_web_port }}"
+        host: 0.0.0.0
+        timeout: 10
+
+    - name: Query master cluster status
+      ansible.builtin.uri:
+        url: "http://127.0.0.1:{{ yb_master_web_port }}/api/v1/masters"
+        return_content: true
+      register: masters_response
+
+    - name: Assert cluster has exactly one LEADER
+      ansible.builtin.assert:
+        that: >-
+          (masters_response.content | from_json).masters
+          | selectattr('role', 'defined')
+          | selectattr('role', 'equalto', 'LEADER')
+          | list
+          | length == 1
+        fail_msg: "Expected exactly one LEADER master"
+      run_once: true
+
+    - name: Assert all inventory masters are in the cluster
+      ansible.builtin.assert:
+        that: >-
+          groups['masters'] | length ==
+          (masters_response.content | from_json).masters
+          | selectattr('role', 'defined')
+          | selectattr('role', 'in', ['LEADER', 'FOLLOWER'])
+          | list
+          | length
+        fail_msg: "Not all inventory masters have a role in the cluster"
+      run_once: true
+
+- name: Verify tservers
+  hosts: tservers
+  become: false
+  gather_facts: false
+  vars:
+    yb_install_dir: /opt/yugabyte
+    yb_master_web_port: 7000
+    yb_tserver_rpc_port: 9100
+    yb_tserver_web_port: 9000
+    db_port: 5433
+  tasks:
+    - name: Check yb-tserver service is active
+      ansible.builtin.command:
+        cmd: systemctl is-active yb-tserver
+      changed_when: false
+      become: true
+
+    - name: Check tserver RPC port is listening
+      ansible.builtin.wait_for:
+        port: "{{ yb_tserver_rpc_port }}"
+        host: 0.0.0.0
+        timeout: 10
+
+    - name: Check YSQL proxy port is listening
+      ansible.builtin.wait_for:
+        port: "{{ db_port }}"
+        host: 0.0.0.0
+        timeout: 10
+
+    - name: Query tserver health check
+      ansible.builtin.uri:
+        url: "http://127.0.0.1:{{ yb_tserver_web_port }}/api/v1/health-check"
+        return_content: true
+      register: health_response
+
+    - name: Assert tserver health check passed
+      ansible.builtin.assert:
+        that: health_response.status == 200
+        fail_msg: "TServer health check failed"
+
+    - name: Query tablet servers from master
+      ansible.builtin.uri:
+        url: "http://{{ groups['masters'][0] }}:{{ yb_master_web_port }}/api/v1/tablet-servers"
+        return_content: true
+      register: tservers_response
+      run_once: true
+
+    - name: Parse tablet servers response
+      ansible.builtin.set_fact:
+        tserver_list: >-
+          {{ (tservers_response.content | from_json).values()
+             | map('dict2items')
+             | flatten
+             | map(attribute='value')
+             | selectattr('status', 'defined')
+             | list }}
+      run_once: true
+
+    - name: Assert all tservers are ALIVE
+      ansible.builtin.assert:
+        that: >-
+          tserver_list
+          | selectattr('status', 'equalto', 'ALIVE')
+          | list
+          | length == groups['tservers'] | length
+        fail_msg: "Not all tservers are ALIVE in the cluster"
+      run_once: true
+
+    - name: Test YSQL connectivity
+      ansible.builtin.command:
+        cmd: "{{ yb_install_dir }}/bin/ysqlsh -h 127.0.0.1 -p {{ db_port }} -c 'SELECT 1;'"
+      changed_when: false
+      register: ysql_test
+
+    - name: Assert YSQL responded
+      ansible.builtin.assert:
+        that: "'1' in ysql_test.stdout"
+        fail_msg: "YSQL did not respond to SELECT 1"
+
+    - name: Print verification summary
+      ansible.builtin.debug:
+        msg: "All verification checks passed for {{ inventory_hostname }}"

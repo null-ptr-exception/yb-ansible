@@ -114,3 +114,6 @@
     name: prometheus-node-exporter
     state: started
     enabled: true
+
+- name: Verify common role
+  ansible.builtin.import_tasks: verify.yml

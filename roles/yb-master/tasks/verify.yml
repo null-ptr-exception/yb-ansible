@@ -1,0 +1,28 @@
+---
+- name: Wait for master RPC port
+  ansible.builtin.wait_for:
+    port: "{{ yb_master_rpc_port }}"
+    host: 0.0.0.0
+    timeout: 30
+
+- name: Wait for master web UI
+  ansible.builtin.wait_for:
+    port: "{{ yb_master_web_port }}"
+    host: 0.0.0.0
+    timeout: 30
+
+- name: Query master cluster status
+  ansible.builtin.uri:
+    url: "http://127.0.0.1:{{ yb_master_web_port }}/api/v1/masters"
+    return_content: true
+  register: masters_response
+
+- name: Assert this master has a role
+  ansible.builtin.assert:
+    that: >-
+      (masters_response.content | from_json).masters
+      | selectattr('role', 'defined')
+      | selectattr('role', 'in', ['LEADER', 'FOLLOWER'])
+      | list
+      | length > 0
+    fail_msg: "No master with LEADER or FOLLOWER role found in cluster"

@@ -28,3 +28,6 @@
     state: started
     enabled: true
     daemon_reload: true
+
+- name: Verify yb-tserver role
+  ansible.builtin.import_tasks: verify.yml

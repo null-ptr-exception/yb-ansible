@@ -16,20 +16,20 @@ jobs:
 
       - name: Revert VMs to clean snapshots
         run: |
-          for vm in ygvm-master-1 ygvm-master-2 ygvm-master-3 ygvm-tserver-1; do
+          for vm in yb-ansible-master-1 yb-ansible-master-2 yb-ansible-master-3 yb-ansible-tserver-1; do
             virsh snapshot-revert "$vm" clean-base
           done
 
       - name: Start VMs
         run: |
-          for vm in ygvm-master-1 ygvm-master-2 ygvm-master-3 ygvm-tserver-1; do
+          for vm in yb-ansible-master-1 yb-ansible-master-2 yb-ansible-master-3 yb-ansible-tserver-1; do
             virsh start "$vm"
           done
 
       - name: Wait for VMs to be SSH-ready and discover IPs
         run: |
           declare -A vm_ips
-          for vm in ygvm-master-1 ygvm-master-2 ygvm-master-3 ygvm-tserver-1; do
+          for vm in yb-ansible-master-1 yb-ansible-master-2 yb-ansible-master-3 yb-ansible-tserver-1; do
             echo "Waiting for $vm..."
             ready=false
             for i in $(seq 1 60); do
@@ -49,10 +49,10 @@ jobs:
           done
 
           {
-            echo "YB_MASTER_1_IP=${vm_ips[ygvm-master-1]}"
-            echo "YB_MASTER_2_IP=${vm_ips[ygvm-master-2]}"
-            echo "YB_MASTER_3_IP=${vm_ips[ygvm-master-3]}"
-            echo "YB_TSERVER_1_IP=${vm_ips[ygvm-tserver-1]}"
+            echo "YB_MASTER_1_IP=${vm_ips[yb-ansible-master-1]}"
+            echo "YB_MASTER_2_IP=${vm_ips[yb-ansible-master-2]}"
+            echo "YB_MASTER_3_IP=${vm_ips[yb-ansible-master-3]}"
+            echo "YB_TSERVER_1_IP=${vm_ips[yb-ansible-tserver-1]}"
           } > molecule/default/.env
           echo "Generated .env:"
           cat molecule/default/.env
@@ -93,6 +93,6 @@ jobs:
       - name: Shut down VMs
         if: success()
         run: |
-          for vm in ygvm-master-1 ygvm-master-2 ygvm-master-3 ygvm-tserver-1; do
+          for vm in yb-ansible-master-1 yb-ansible-master-2 yb-ansible-master-3 yb-ansible-tserver-1; do
             virsh shutdown "$vm" 2>/dev/null || true
           done

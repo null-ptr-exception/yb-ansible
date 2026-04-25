@@ -3,6 +3,7 @@
   ansible.builtin.set_fact:
     yb_master_addresses: >-
       {{ groups['masters']
+         | map('extract', hostvars, 'ansible_host')
          | map('regex_replace', '$', ':' ~ yb_master_rpc_port)
          | join(',') }}
   when: yb_master_addresses is not defined
@@ -28,6 +29,9 @@
     state: started
     enabled: true
     daemon_reload: true
+
+- name: Flush handlers
+  ansible.builtin.meta: flush_handlers
 
 - name: Verify yb-tserver role
   ansible.builtin.import_tasks: verify.yml

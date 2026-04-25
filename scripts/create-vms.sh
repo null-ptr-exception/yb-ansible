@@ -72,18 +72,18 @@ NETEOF
 }
 
 # Masters: 1 vCPU, 1 GB RAM, 10 GB disk
-create_vm ygvm-master-1 1 1024
-create_vm ygvm-master-2 1 1024
-create_vm ygvm-master-3 1 1024
+create_vm yb-ansible-master-1 1 1024
+create_vm yb-ansible-master-2 1 1024
+create_vm yb-ansible-master-3 1 1024
 
 # TServers: 2 vCPU, 2 GB RAM, 20 GB disk
-create_vm ygvm-tserver-1 2 2048 20
+create_vm yb-ansible-tserver-1 2 2048 20
 
 echo ""
 echo "All VMs created. Waiting for IPs..."
 sleep 30
 
-for vm in ygvm-master-1 ygvm-master-2 ygvm-master-3 ygvm-tserver-1; do
+for vm in yb-ansible-master-1 yb-ansible-master-2 yb-ansible-master-3 yb-ansible-tserver-1; do
   ip=$(virsh domifaddr "$vm" 2>/dev/null | grep -oP '(\d+\.){3}\d+' || echo "pending...")
   echo "$vm: $ip"
 done

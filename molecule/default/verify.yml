@@ -131,7 +131,7 @@
 
     - name: Query tablet servers from master
       ansible.builtin.uri:
-        url: "http://{{ groups['masters'][0] }}:{{ yb_master_web_port }}/api/v1/tablet-servers"
+        url: "http://{{ hostvars[groups['masters'][0]]['ansible_host'] | default(groups['masters'][0]) }}:{{ yb_master_web_port }}/api/v1/tablet-servers"
         return_content: true
       register: tservers_response
       run_once: true

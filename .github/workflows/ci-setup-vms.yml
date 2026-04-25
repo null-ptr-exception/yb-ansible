@@ -22,7 +22,7 @@ jobs:
 
       - name: Destroy existing VMs (if any)
         run: |
-          for vm in ygvm-master-1 ygvm-master-2 ygvm-master-3 ygvm-tserver-1; do
+          for vm in yb-ansible-master-1 yb-ansible-master-2 yb-ansible-master-3 yb-ansible-tserver-1; do
             virsh destroy "$vm" 2>/dev/null || true
             virsh undefine "$vm" --remove-all-storage --snapshots-metadata 2>/dev/null || true
           done
@@ -36,7 +36,7 @@ jobs:
 
       - name: Wait for VMs to be SSH-ready
         run: |
-          for vm in ygvm-master-1 ygvm-master-2 ygvm-master-3 ygvm-tserver-1; do
+          for vm in yb-ansible-master-1 yb-ansible-master-2 yb-ansible-master-3 yb-ansible-tserver-1; do
             echo "Waiting for $vm..."
             ready=false
             for i in $(seq 1 60); do
@@ -56,7 +56,7 @@ jobs:
 
       - name: Wait for cloud-init to finish
         run: |
-          for vm in ygvm-master-1 ygvm-master-2 ygvm-master-3 ygvm-tserver-1; do
+          for vm in yb-ansible-master-1 yb-ansible-master-2 yb-ansible-master-3 yb-ansible-tserver-1; do
             ip=$(virsh domifaddr "$vm" 2>/dev/null | grep -oP '(\d+\.){3}\d+' || true)
             echo "Waiting for cloud-init on $vm ($ip)..."
             ssh -o StrictHostKeyChecking=no ubuntu@"$ip" 'cloud-init status --wait'
@@ -65,10 +65,10 @@ jobs:
 
       - name: Shut down VMs for offline snapshot
         run: |
-          for vm in ygvm-master-1 ygvm-master-2 ygvm-master-3 ygvm-tserver-1; do
+          for vm in yb-ansible-master-1 yb-ansible-master-2 yb-ansible-master-3 yb-ansible-tserver-1; do
             virsh shutdown "$vm"
           done
-          for vm in ygvm-master-1 ygvm-master-2 ygvm-master-3 ygvm-tserver-1; do
+          for vm in yb-ansible-master-1 yb-ansible-master-2 yb-ansible-master-3 yb-ansible-tserver-1; do
             echo "Waiting for $vm to shut off..."
             for i in $(seq 1 30); do
               state=$(virsh domstate "$vm" 2>/dev/null || true)
@@ -82,7 +82,7 @@ jobs:
 
       - name: Take offline snapshots
         run: |
-          for vm in ygvm-master-1 ygvm-master-2 ygvm-master-3 ygvm-tserver-1; do
+          for vm in yb-ansible-master-1 yb-ansible-master-2 yb-ansible-master-3 yb-ansible-tserver-1; do
             virsh snapshot-create-as "$vm" clean-base --description "Clean state for molecule tests"
             echo "Snapshot created for $vm"
           done

@@ -5,22 +5,31 @@ driver:
     managed: false
 
 platforms:
-  - name: ${YB_MASTER_1_IP}
+  - name: master-1
     groups:
       - masters
-  - name: ${YB_MASTER_2_IP}
+  - name: master-2
     groups:
       - masters
-  - name: ${YB_MASTER_3_IP}
+  - name: master-3
     groups:
       - masters
-  - name: ${YB_TSERVER_1_IP}
+  - name: tserver-1
     groups:
       - tservers
 
 provisioner:
   name: ansible
   inventory:
+    host_vars:
+      master-1:
+        ansible_host: ${YB_MASTER_1_IP}
+      master-2:
+        ansible_host: ${YB_MASTER_2_IP}
+      master-3:
+        ansible_host: ${YB_MASTER_3_IP}
+      tserver-1:
+        ansible_host: ${YB_TSERVER_1_IP}
     group_vars:
       all:
         ansible_user: ubuntu

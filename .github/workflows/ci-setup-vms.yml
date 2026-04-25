@@ -54,6 +54,15 @@ jobs:
             fi
           done
 
+      - name: Wait for cloud-init to finish
+        run: |
+          for vm in ygvm-master-1 ygvm-master-2 ygvm-master-3 ygvm-tserver-1; do
+            ip=$(virsh domifaddr "$vm" 2>/dev/null | grep -oP '(\d+\.){3}\d+' || true)
+            echo "Waiting for cloud-init on $vm ($ip)..."
+            ssh -o StrictHostKeyChecking=no ubuntu@"$ip" 'cloud-init status --wait'
+            echo "$vm cloud-init done"
+          done
+
       - name: Shut down VMs for offline snapshot
         run: |
           for vm in ygvm-master-1 ygvm-master-2 ygvm-master-3 ygvm-tserver-1; do

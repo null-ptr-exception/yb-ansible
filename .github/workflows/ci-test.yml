@@ -55,6 +55,17 @@ jobs:
           echo "Generated .env:"
           cat molecule/default/.env
 
+      - name: Wait for cloud-init to finish
+        run: |
+          set -a
+          source molecule/default/.env
+          set +a
+          for ip in $YB_MASTER_1_IP $YB_MASTER_2_IP $YB_MASTER_3_IP $YB_TSERVER_1_IP; do
+            echo "Waiting for cloud-init on $ip..."
+            ssh -o StrictHostKeyChecking=no ubuntu@"$ip" 'cloud-init status --wait' 2>/dev/null
+            echo "$ip cloud-init done"
+          done
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:

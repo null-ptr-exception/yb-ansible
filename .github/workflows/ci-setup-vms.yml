@@ -54,16 +54,26 @@ jobs:
             fi
           done
 
-      - name: Take clean snapshots
+      - name: Shut down VMs for offline snapshot
+        run: |
+          for vm in ygvm-master-1 ygvm-master-2 ygvm-master-3 ygvm-tserver-1; do
+            virsh shutdown "$vm"
+          done
+          for vm in ygvm-master-1 ygvm-master-2 ygvm-master-3 ygvm-tserver-1; do
+            echo "Waiting for $vm to shut off..."
+            for i in $(seq 1 30); do
+              state=$(virsh domstate "$vm" 2>/dev/null || true)
+              if [ "$state" = "shut off" ]; then
+                echo "$vm is shut off"
+                break
+              fi
+              sleep 2
+            done
+          done
+
+      - name: Take offline snapshots
         run: |
           for vm in ygvm-master-1 ygvm-master-2 ygvm-master-3 ygvm-tserver-1; do
             virsh snapshot-create-as "$vm" clean-base --description "Clean state for molecule tests"
             echo "Snapshot created for $vm"
-          done
-
-      - name: Print VM IPs
-        run: |
-          for vm in ygvm-master-1 ygvm-master-2 ygvm-master-3 ygvm-tserver-1; do
-            ip=$(virsh domifaddr "$vm" 2>/dev/null | grep -oP '(\d+\.){3}\d+' || echo "unknown")
-            echo "$vm: $ip"
           done

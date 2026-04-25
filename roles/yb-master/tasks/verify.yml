@@ -16,6 +16,11 @@
     url: "http://127.0.0.1:{{ yb_master_web_port }}/api/v1/masters"
     return_content: true
   register: masters_response
+  retries: 5
+  delay: 3
+  until: >-
+    masters_response.status == 200 and
+    (masters_response.content | from_json).masters is defined
 
 - name: Assert this master has a role
   ansible.builtin.assert:

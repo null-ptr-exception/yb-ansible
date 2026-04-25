@@ -3,13 +3,13 @@
   ansible.builtin.wait_for:
     port: "{{ yb_tserver_rpc_port }}"
     host: 0.0.0.0
-    timeout: 30
+    timeout: 60
 
 - name: Wait for YSQL proxy port
   ansible.builtin.wait_for:
     port: "{{ db_port }}"
     host: 0.0.0.0
-    timeout: 30
+    timeout: 60
 
 - name: Query tserver health check
   ansible.builtin.uri:

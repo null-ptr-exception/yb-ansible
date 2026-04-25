@@ -34,16 +34,36 @@
     path: "{{ yb_install_dir }}/bin/yb-master"
   register: yb_installed
 
+- name: Check if YB shipper image exists
+  ansible.builtin.command:
+    cmd: podman image exists {{ yb_shipper_image }}
+  register: image_exists
+  changed_when: false
+  failed_when: false
+  when: not yb_installed.stat.exists
+
+- name: Check for pre-staged shipper image tar
+  ansible.builtin.stat:
+    path: "{{ yb_shipper_tar | default('/tmp/yb-shipper.tar') }}"
+  register: shipper_tar
+  when: not yb_installed.stat.exists and image_exists.rc != 0
+
+- name: Load YB shipper image from tar
+  ansible.builtin.command:
+    cmd: podman load -i {{ yb_shipper_tar | default('/tmp/yb-shipper.tar') }}
+  when: not yb_installed.stat.exists and image_exists.rc != 0 and shipper_tar.stat.exists
+  changed_when: true
+
 - name: Pull YB shipper image
   ansible.builtin.command:
     cmd: podman pull {{ yb_shipper_image }}
   register: podman_pull
   changed_when: "'Already exists' not in podman_pull.stdout"
-  when: not yb_installed.stat.exists
+  when: not yb_installed.stat.exists and image_exists.rc != 0 and not shipper_tar.stat.exists
 
 - name: Create temporary container from shipper image
   ansible.builtin.command:
-    cmd: podman create --name yb-shipper-tmp {{ yb_shipper_image }}
+    cmd: podman create --name yb-shipper-tmp {{ yb_shipper_image }} /bin/true
   changed_when: true
   when: not yb_installed.stat.exists
 
@@ -81,7 +101,13 @@
     cmd: ./bin/post_install.sh
     chdir: "{{ yb_install_dir }}"
     creates: "{{ yb_install_dir }}/.post_install.sh.completed"
-  become_user: "{{ yb_user }}"
+
+- name: Configure node-exporter port
+  ansible.builtin.lineinfile:
+    path: /etc/default/prometheus-node-exporter
+    regexp: '^ARGS='
+    line: 'ARGS="--web.listen-address=:{{ node_exporter_port }}"'
+  notify: restart node-exporter
 
 - name: Enable and start node-exporter
   ansible.builtin.systemd:

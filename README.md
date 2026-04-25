@@ -4,22 +4,27 @@ Ansible playbooks for deploying YugabyteDB on Ubuntu Linux VMs.
 
 ## Requirements
 
-- Ansible 2.14+
+- Python 3.12+ (use [mise](https://mise.jdx.dev/) — `mise install`)
 - Ubuntu 22.04 LTS target hosts
 - SSH access to all target hosts with sudo privileges
 
 ## Quick Start
 
-1. Clone the repo and create your inventory:
+1. Set up the Python environment and install Ansible:
+
+```bash
+mise install
+python -m venv .venv
+source .venv/bin/activate
+pip install ansible
+```
+
+2. Create your inventory and credentials:
 
 ```bash
 cp inventory.example.ini inventory.ini
 # Edit inventory.ini with your host IPs
-```
 
-2. Create a `.env` file for credentials:
-
-```bash
 cp .env.example .env
 # Edit .env with your values
 ```
@@ -27,6 +32,7 @@ cp .env.example .env
 3. Run the playbook:
 
 ```bash
+source .venv/bin/activate
 ansible-playbook site.yml
 ```
 

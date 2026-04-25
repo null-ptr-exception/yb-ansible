@@ -1,0 +1,41 @@
+name: Build YB Shipper Image
+
+on:
+  workflow_dispatch:
+    inputs:
+      yb_version:
+        description: "YugabyteDB version (e.g. 2025.2.2.2)"
+        required: true
+      yb_build:
+        description: "Build number (e.g. b11)"
+        required: true
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository_owner }}/yb-shipper
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: shipper
+          push: true
+          build-args: |
+            YB_VERSION=${{ inputs.yb_version }}
+            YB_BUILD=${{ inputs.yb_build }}
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ inputs.yb_version }}

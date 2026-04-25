@@ -1,0 +1,67 @@
+name: CI Setup VMs
+
+on:
+  workflow_dispatch:
+
+jobs:
+  setup:
+    runs-on: [self-hosted, nuc-rophy]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download Ubuntu 22.04 cloud image
+        run: |
+          mkdir -p /home/gha-runner/vm-images
+          if [ ! -f /home/gha-runner/vm-images/ubuntu-22.04-cloudimg.img ]; then
+            wget -q -O /home/gha-runner/vm-images/ubuntu-22.04-cloudimg.img \
+              https://cloud-images.ubuntu.com/releases/22.04/release/ubuntu-22.04-server-cloudimg-amd64.img
+          fi
+
+      - name: Destroy existing VMs (if any)
+        run: |
+          for vm in ygvm-master-1 ygvm-master-2 ygvm-master-3 ygvm-tserver-1; do
+            virsh destroy "$vm" 2>/dev/null || true
+            virsh undefine "$vm" --remove-all-storage --snapshots-metadata 2>/dev/null || true
+          done
+
+      - name: Create VMs
+        run: bash scripts/create-vms.sh
+        env:
+          YB_VM_BASE_IMG: /home/gha-runner/vm-images/ubuntu-22.04-cloudimg.img
+          YB_VM_DIR: /home/gha-runner/vm-disks
+          YB_VM_SSH_KEY: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIKIuztTQ4W6+LC8scYfmNM3Bmv/Rpp0hk2cwahrDxai8 gha-runner@nuc-rophy"
+
+      - name: Wait for VMs to be SSH-ready
+        run: |
+          for vm in ygvm-master-1 ygvm-master-2 ygvm-master-3 ygvm-tserver-1; do
+            echo "Waiting for $vm..."
+            ready=false
+            for i in $(seq 1 60); do
+              ip=$(virsh domifaddr "$vm" 2>/dev/null | grep -oP '(\d+\.){3}\d+' || true)
+              if [ -n "$ip" ] && ssh -o StrictHostKeyChecking=no -o ConnectTimeout=3 ubuntu@"$ip" true 2>/dev/null; then
+                echo "$vm is ready at $ip"
+                ready=true
+                break
+              fi
+              sleep 5
+            done
+            if [ "$ready" = false ]; then
+              echo "ERROR: $vm did not become SSH-ready within 5 minutes"
+              exit 1
+            fi
+          done
+
+      - name: Take clean snapshots
+        run: |
+          for vm in ygvm-master-1 ygvm-master-2 ygvm-master-3 ygvm-tserver-1; do
+            virsh snapshot-create-as "$vm" clean-base --description "Clean state for molecule tests"
+            echo "Snapshot created for $vm"
+          done
+
+      - name: Print VM IPs
+        run: |
+          for vm in ygvm-master-1 ygvm-master-2 ygvm-master-3 ygvm-tserver-1; do
+            ip=$(virsh domifaddr "$vm" 2>/dev/null | grep -oP '(\d+\.){3}\d+' || echo "unknown")
+            echo "$vm: $ip"
+          done

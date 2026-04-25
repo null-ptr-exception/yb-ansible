@@ -1,9 +1,12 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-BASE_IMG="/home/rophy/projects/db-perf-test/.vms/ubuntu-22.04-cloudimg.img"
-VM_DIR="/home/rophy/projects/yb-ansible/.vms"
-SSH_KEY="ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAINtJBZHaT6eSByrSE/min8SywDzig9Kou1Q5TwCPpsCD rophy"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+BASE_IMG="${YB_VM_BASE_IMG:-${SCRIPT_DIR}/ubuntu-22.04-cloudimg.img}"
+VM_DIR="${YB_VM_DIR:-${SCRIPT_DIR}}"
+SSH_KEY="${YB_VM_SSH_KEY:-ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAINtJBZHaT6eSByrSE/min8SywDzig9Kou1Q5TwCPpsCD rophy}"
+
+mkdir -p "$VM_DIR"
 
 create_vm() {
   local name=$1 vcpus=$2 ram_mb=$3 disk_gb=${4:-10}

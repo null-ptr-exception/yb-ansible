@@ -1,6 +1,10 @@
 ---
-- name: restart yb-master
-  ansible.builtin.systemd:
-    name: yb-master
-    state: restarted
-    daemon_reload: true
+- name: Fail on config change in deploy mode
+  listen: yb-master config changed
+  ansible.builtin.fail:
+    msg: >-
+      Config change detected on running yb-master.
+      Use upgrade.yml for config changes on existing nodes.
+  when:
+    - _yb_master_unit.stat.exists
+    - not (yb_allow_config_change | default(false))

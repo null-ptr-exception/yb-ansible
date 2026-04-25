@@ -1,6 +1,10 @@
 ---
-- name: restart yb-tserver
-  ansible.builtin.systemd:
-    name: yb-tserver
-    state: restarted
-    daemon_reload: true
+- name: Fail on config change in deploy mode
+  listen: yb-tserver config changed
+  ansible.builtin.fail:
+    msg: >-
+      Config change detected on running yb-tserver.
+      Use upgrade.yml for config changes on existing nodes.
+  when:
+    - _yb_tserver_unit.stat.exists
+    - not (yb_allow_config_change | default(false))

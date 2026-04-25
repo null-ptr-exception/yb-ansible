@@ -16,12 +16,17 @@
     group: "{{ yb_group }}"
     mode: "0755"
 
+- name: Check if yb-master unit exists
+  ansible.builtin.stat:
+    path: /etc/systemd/system/yb-master.service
+  register: _yb_master_unit
+
 - name: Install yb-master systemd unit
   ansible.builtin.template:
     src: yb-master.service.j2
     dest: /etc/systemd/system/yb-master.service
     mode: "0644"
-  notify: restart yb-master
+  notify: yb-master config changed
 
 - name: Enable and start yb-master
   ansible.builtin.systemd:

@@ -1,4 +1,42 @@
 ---
+- name: Pre-flight checks
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tasks:
+    - name: Validate master count is odd and non-zero
+      ansible.builtin.assert:
+        that:
+          - groups['masters'] | length > 0
+          - groups['masters'] | length % 2 == 1
+        fail_msg: "Master count must be odd and non-zero (got {{ groups['masters'] | length }})"
+
+    - name: Check if any master is responding
+      ansible.builtin.uri:
+        url: "http://{{ hostvars[item]['ansible_host'] }}:7000/api/v1/masters"
+        return_content: true
+        timeout: 5
+      register: _preflight_master_api
+      failed_when: false
+      loop: "{{ groups['masters'] }}"
+      loop_control:
+        label: "{{ item }}"
+
+    - name: Validate master membership matches inventory
+      when: (_preflight_master_api.results | selectattr('status', 'defined') | selectattr('status', 'equalto', 200) | list | length) > 0
+      vars:
+        _api_result: "{{ (_preflight_master_api.results | selectattr('status', 'defined') | selectattr('status', 'equalto', 200) | first).content | from_json }}"
+        _cluster_master_hosts: "{{ _api_result.masters | map(attribute='registration') | map(attribute='broadcast_addresses') | map('first') | map(attribute='host') | sort | list }}"
+        _inventory_master_hosts: "{{ groups['masters'] | map('extract', hostvars, 'ansible_host') | sort | list }}"
+      ansible.builtin.assert:
+        that:
+          - _cluster_master_hosts == _inventory_master_hosts
+        fail_msg: >-
+          Master membership mismatch.
+          Cluster: {{ _cluster_master_hosts }}
+          Inventory: {{ _inventory_master_hosts }}
+          Use replace-master.yml to change master membership.
+
 - name: Common prerequisites on all nodes
   hosts: all
   become: true

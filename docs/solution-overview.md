@@ -13,19 +13,22 @@ Plain repo of roles (not an Ansible Galaxy collection):
 ```
 roles/
   common/
+  yb-build/
   yb-master/
   yb-tserver/
 site.yml
+verify.yml
 inventory.ini
 ```
 
 ## Scope
 
-Three roles:
+Four roles:
 
 | Role | Responsibility |
 |---|---|
-| `common` | Install prerequisites (podman, node-exporter via apt), extract YugabyteDB, run `post_install.sh` |
+| `common` | Install shared prerequisites (podman, node-exporter, yugabyte user/group) |
+| `yb-build` | Download and install YugabyteDB tarball via OCI shipper image, run `post_install.sh` |
 | `yb-master` | Deploy a YB master instance as a systemd service |
 | `yb-tserver` | Deploy a YB tserver instance as a systemd service |
 
@@ -60,6 +63,7 @@ testing only.
   │         │ │          │    │          │
   │ roles:  │ │ roles:   │    │ roles:   │
   │ common  │ │ common   │    │ common   │
+  │ yb-build│ │ yb-build │    │ yb-build │
   │ yb-master│ │ yb-tserver│   │ yb-tserver│
   └─────────┘ └─────────┘    └─────────┘
 ```
@@ -68,14 +72,20 @@ testing only.
 
 Installs shared prerequisites on all nodes:
 
-- **podman** — used to distribute the YugabyteDB tarball via OCI image
-  (air-gap friendly, no internet download required on target hosts).
-  Lightweight and daemonless. Image layers are cached so version upgrades
-  only pull the changed layer, not the full tarball.
+- **podman** — container runtime for OCI image handling. Lightweight
+  and daemonless.
 - **node-exporter** — `apt install prometheus-node-exporter` for basic
-  host metrics (CPU, memory, disk, network).
-- **YugabyteDB extraction** — pulls the YB shipper OCI image, extracts
-  the tarball to `yb_install_dir`, runs `./bin/post_install.sh`.
+  host metrics (CPU, memory, disk, network). Configured on port 9200
+  to avoid conflict with yb-tserver RPC default (9100).
+- **yugabyte user/group** — system account for running YB processes.
+
+### Role: yb-build
+
+Downloads and installs YugabyteDB on all nodes:
+
+- Pulls the YB shipper OCI image (or loads from a pre-staged tar)
+- Extracts the tarball to `yb_install_dir` (default `/opt/yugabyte`)
+- Runs `./bin/post_install.sh` to fix library paths
 
 #### post_install.sh
 
@@ -128,6 +138,29 @@ yb_tserver_flags:
 Additional flags are passed as key-value pairs and rendered into the
 systemd ExecStart line.
 
+## Post-Deployment Verification
+
+Two complementary verification layers:
+
+### Role verify tasks
+
+Each role includes a `verify.yml` that runs at the end of deployment.
+If verification fails, the deployment fails immediately.
+
+- **common** — node-exporter listening and responding
+- **yb-build** — YB binary exists at install path
+- **yb-master** — RPC/web ports listening, master API returns LEADER/FOLLOWER roles
+- **yb-tserver** — RPC/YSQL ports listening, health-check API returns 200, YSQL responds to `SELECT 1`
+
+### Standalone verify.yml playbook
+
+A read-only playbook for on-demand health checks (`ansible-playbook verify.yml`).
+Performs deeper cluster-level assertions:
+
+- Cluster has exactly one LEADER master
+- All inventory masters are present in the cluster
+- All tservers are ALIVE in the master's tablet-server list
+
 ## YugabyteDB Distribution
 
 The playbooks use an OCI image ("YB shipper") to distribute the
@@ -138,8 +171,9 @@ YugabyteDB tarball. This approach:
 - Caches image layers so version upgrades are incremental
 - Uses podman (rootless, daemonless) — no Docker required
 
-The shipper image contains only the YB tarball at `/tarball/yugabyte.tar.gz`.
-The `common` role extracts it to `yb_install_dir` (default `/opt/yugabyte`).
+The shipper image is built via `shipper/Dockerfile` and published to
+GHCR via GitHub Actions (`.github/workflows/build-shipper.yml`).
+The image contains only the YB tarball at `/tarball/yugabyte.tar.gz`.
 
 ## Credentials
 
@@ -168,6 +202,7 @@ template.
 - hosts: all
   roles:
     - common
+    - yb-build
 
 - hosts: masters
   roles:
@@ -182,8 +217,8 @@ template.
 
 ```yaml
 # YugabyteDB version and paths
-yb_version: "2025.2.2.1"
-yb_shipper_image: "yb-shipper:{{ yb_version }}"
+yb_version: "2025.2.2.2"
+yb_shipper_image: "ghcr.io/null-ptr-exception/yb-shipper:{{ yb_version }}"
 yb_install_dir: /opt/yugabyte
 yb_data_dir: /data/yugabyte
 yb_replication_factor: 3
@@ -194,16 +229,17 @@ yb_master_web_port: 7000
 yb_tserver_rpc_port: 9100
 yb_tserver_web_port: 9000
 db_port: 5433
+node_exporter_port: 9200
 ```
 
 ## Supported Platforms
 
 - Ubuntu 22.04 LTS
-- Ubuntu 24.04 LTS
 
 ## Future Work
 
 - Placement info (cloud/region/zone) for multi-DC and rack-aware deployments
 - Multiple `--fs_data_dirs` for tserver (multiple disks)
 - Upgrades / rolling restart playbook
+- Molecule tests for CI/pre-merge role testing
 - Ansible Galaxy collection packaging

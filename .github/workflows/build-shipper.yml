@@ -37,6 +37,4 @@ jobs:
           build-args: |
             YB_VERSION=${{ inputs.yb_version }}
             YB_BUILD=${{ inputs.yb_build }}
-          tags: |
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ inputs.yb_version }}
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ inputs.yb_version }}-${{ github.sha }}
+          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ inputs.yb_version }}

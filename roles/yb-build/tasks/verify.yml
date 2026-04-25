@@ -2,9 +2,20 @@
 - name: Verify YB binary exists
   ansible.builtin.stat:
     path: "{{ yb_install_dir }}/bin/yb-master"
-  register: yb_binary
+  register: _yb_verify_binary
 
 - name: Assert YB binary is present
   ansible.builtin.assert:
-    that: yb_binary.stat.exists
+    that: _yb_verify_binary.stat.exists
     fail_msg: "YugabyteDB binary not found at {{ yb_install_dir }}/bin/yb-master"
+
+- name: Get installed YB version
+  ansible.builtin.command:
+    cmd: "{{ yb_install_dir }}/bin/yb-master --version"
+  register: _yb_verify_version
+  changed_when: false
+
+- name: Assert YB version matches
+  ansible.builtin.assert:
+    that: "yb_shipper_tag in _yb_verify_version.stdout"
+    fail_msg: "Version mismatch: expected {{ yb_shipper_tag }}, got {{ _yb_verify_version.stdout }}"

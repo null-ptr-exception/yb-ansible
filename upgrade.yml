@@ -2,6 +2,8 @@
 - name: Common prerequisites on all nodes
   hosts: all
   become: true
+  vars:
+    yb_allow_version_change: true
   roles:
     - common
     - node-exporter

@@ -1,8 +1,40 @@
 ---
-- name: Check if YB is already installed
+- name: Check if YB binary exists
   ansible.builtin.stat:
     path: "{{ yb_install_dir }}/bin/yb-master"
-  register: yb_installed
+  register: _yb_exists
+
+- name: Get installed YB version
+  ansible.builtin.command:
+    cmd: "{{ yb_install_dir }}/bin/yb-master --version"
+  register: _yb_version_output
+  changed_when: false
+  when: _yb_exists.stat.exists
+
+- name: Determine if install is needed
+  ansible.builtin.set_fact:
+    _yb_needs_install: "{{ not _yb_exists.stat.exists or (yb_shipper_tag not in (_yb_version_output.stdout | default(''))) }}"
+
+- name: Check if yb-master is running
+  ansible.builtin.command:
+    cmd: systemctl is-active yb-master
+  register: _yb_master_active
+  changed_when: false
+  failed_when: false
+  when:
+    - _yb_needs_install | bool
+    - _yb_exists.stat.exists
+
+- name: Fail on version change with running services
+  ansible.builtin.fail:
+    msg: >-
+      Version change detected (current: {{ _yb_version_output.stdout | default('none') }},
+      target: {{ yb_shipper_tag }}). Use upgrade.yml for version changes.
+  when:
+    - _yb_needs_install | bool
+    - _yb_exists.stat.exists
+    - _yb_master_active.rc | default(1) == 0
+    - not (yb_allow_version_change | default(false))
 
 - name: Check if YB shipper image exists
   ansible.builtin.command:
@@ -10,18 +42,18 @@
   register: image_exists
   changed_when: false
   failed_when: false
-  when: not yb_installed.stat.exists
+  when: _yb_needs_install | bool
 
 - name: Check for pre-staged shipper image tar
   ansible.builtin.stat:
     path: "{{ yb_shipper_tar | default('/tmp/yb-shipper.tar') }}"
   register: shipper_tar
-  when: not yb_installed.stat.exists and image_exists.rc != 0
+  when: _yb_needs_install | bool and image_exists.rc != 0
 
 - name: Load YB shipper image from tar
   ansible.builtin.command:
     cmd: podman load -i {{ yb_shipper_tar | default('/tmp/yb-shipper.tar') }}
-  when: not yb_installed.stat.exists and image_exists.rc != 0 and shipper_tar.stat.exists
+  when: _yb_needs_install | bool and image_exists.rc != 0 and shipper_tar.stat.exists
   changed_when: true
 
 - name: Pull YB shipper image
@@ -29,25 +61,25 @@
     cmd: podman pull {% if not (podman_tls_verify | bool) %}--tls-verify=false {% endif %}{{ yb_shipper_image }}
   register: podman_pull
   changed_when: "'Already exists' not in podman_pull.stdout"
-  when: not yb_installed.stat.exists and image_exists.rc != 0 and not shipper_tar.stat.exists
+  when: _yb_needs_install | bool and image_exists.rc != 0 and not shipper_tar.stat.exists
 
 - name: Create temporary container from shipper image
   ansible.builtin.command:
     cmd: podman create --name yb-shipper-tmp {{ yb_shipper_image }} /bin/true
   changed_when: true
-  when: not yb_installed.stat.exists
+  when: _yb_needs_install | bool
 
 - name: Copy tarball from container
   ansible.builtin.command:
     cmd: podman cp yb-shipper-tmp:/tarball/yugabyte.tar.gz /tmp/yugabyte.tar.gz
   changed_when: true
-  when: not yb_installed.stat.exists
+  when: _yb_needs_install | bool
 
 - name: Remove temporary container
   ansible.builtin.command:
     cmd: podman rm yb-shipper-tmp
   changed_when: true
-  when: not yb_installed.stat.exists
+  when: _yb_needs_install | bool
 
 - name: Extract YugabyteDB tarball
   ansible.builtin.unarchive:
@@ -58,13 +90,13 @@
     group: "{{ yb_group }}"
     extra_opts:
       - --strip-components=1
-  when: not yb_installed.stat.exists
+  when: _yb_needs_install | bool
 
 - name: Clean up tarball
   ansible.builtin.file:
     path: /tmp/yugabyte.tar.gz
     state: absent
-  when: not yb_installed.stat.exists
+  when: _yb_needs_install | bool
 
 - name: Check if post_install.sh has been run
   ansible.builtin.stat:

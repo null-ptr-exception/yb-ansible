@@ -17,28 +17,12 @@ platforms:
   - name: ${YB_TSERVER_1_IP}
     groups:
       - tservers
-  - name: ${YB_TSERVER_2_IP}
-    groups:
-      - tservers
-  - name: ${YB_TSERVER_3_IP}
-    groups:
-      - tservers
 
 provisioner:
   name: ansible
   inventory:
-    host_vars:
-      ${YB_MASTER_1_IP}:
-        ansible_user: ubuntu
-      ${YB_MASTER_2_IP}:
-        ansible_user: ubuntu
-      ${YB_MASTER_3_IP}:
-        ansible_user: ubuntu
-      ${YB_TSERVER_1_IP}:
-        ansible_user: ubuntu
-      ${YB_TSERVER_2_IP}:
-        ansible_user: ubuntu
-      ${YB_TSERVER_3_IP}:
+    group_vars:
+      all:
         ansible_user: ubuntu
   config_options:
     defaults:

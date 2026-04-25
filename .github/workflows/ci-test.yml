@@ -1,0 +1,82 @@
+name: CI Test
+
+on:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: [self-hosted, nuc-rophy]
+    env:
+      LIBVIRT_DEFAULT_URI: qemu:///system
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Revert VMs to clean snapshots
+        run: |
+          for vm in ygvm-master-1 ygvm-master-2 ygvm-master-3 ygvm-tserver-1; do
+            virsh snapshot-revert "$vm" clean-base
+          done
+
+      - name: Start VMs
+        run: |
+          for vm in ygvm-master-1 ygvm-master-2 ygvm-master-3 ygvm-tserver-1; do
+            virsh start "$vm"
+          done
+
+      - name: Wait for VMs to be SSH-ready and discover IPs
+        run: |
+          declare -A vm_ips
+          for vm in ygvm-master-1 ygvm-master-2 ygvm-master-3 ygvm-tserver-1; do
+            echo "Waiting for $vm..."
+            ready=false
+            for i in $(seq 1 60); do
+              ip=$(virsh domifaddr "$vm" 2>/dev/null | grep -oP '(\d+\.){3}\d+' || true)
+              if [ -n "$ip" ] && ssh -o StrictHostKeyChecking=no -o ConnectTimeout=3 ubuntu@"$ip" true 2>/dev/null; then
+                echo "$vm is ready at $ip"
+                vm_ips[$vm]=$ip
+                ready=true
+                break
+              fi
+              sleep 5
+            done
+            if [ "$ready" = false ]; then
+              echo "ERROR: $vm did not become SSH-ready within 5 minutes"
+              exit 1
+            fi
+          done
+
+          {
+            echo "YB_MASTER_1_IP=${vm_ips[ygvm-master-1]}"
+            echo "YB_MASTER_2_IP=${vm_ips[ygvm-master-2]}"
+            echo "YB_MASTER_3_IP=${vm_ips[ygvm-master-3]}"
+            echo "YB_TSERVER_1_IP=${vm_ips[ygvm-tserver-1]}"
+          } > molecule/default/.env
+          echo "Generated .env:"
+          cat molecule/default/.env
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install ansible molecule
+
+      - name: Run molecule test
+        run: |
+          set -a
+          source molecule/default/.env
+          set +a
+          molecule test
+        env:
+          ANSIBLE_HOST_KEY_CHECKING: "false"
+
+      - name: Shut down VMs
+        if: success()
+        run: |
+          for vm in ygvm-master-1 ygvm-master-2 ygvm-master-3 ygvm-tserver-1; do
+            virsh shutdown "$vm" 2>/dev/null || true
+          done

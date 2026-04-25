@@ -58,11 +58,19 @@ In production, masters and tservers should run on separate VMs.
 
 ### common
 
-Installs on all nodes:
+Installs shared prerequisites on all nodes:
 
-- **podman** — extracts the YugabyteDB tarball from an OCI shipper image
+- **podman** — container runtime for OCI image handling
 - **node-exporter** — host metrics via `prometheus-node-exporter`
-- **YugabyteDB** — extracts tarball, runs `bin/post_install.sh` to fix library paths
+- **yugabyte user/group** — system account for running YB processes
+
+### yb-build
+
+Downloads and installs YugabyteDB on all nodes:
+
+- Pulls the OCI shipper image (or loads from a pre-staged tar)
+- Extracts the YugabyteDB tarball from the image
+- Runs `bin/post_install.sh` to fix library paths
 
 ### yb-master
 

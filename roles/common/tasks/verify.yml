@@ -1,14 +1,4 @@
 ---
-- name: Verify YB binary exists
-  ansible.builtin.stat:
-    path: "{{ yb_install_dir }}/bin/yb-master"
-  register: yb_binary
-
-- name: Assert YB binary is present
-  ansible.builtin.assert:
-    that: yb_binary.stat.exists
-    fail_msg: "YugabyteDB binary not found at {{ yb_install_dir }}/bin/yb-master"
-
 - name: Check node-exporter is listening
   ansible.builtin.wait_for:
     port: "{{ node_exporter_port }}"

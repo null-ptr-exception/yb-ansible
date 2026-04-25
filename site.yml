@@ -5,6 +5,12 @@
   roles:
     - common
 
+- name: Install YugabyteDB on all nodes
+  hosts: all
+  become: true
+  roles:
+    - yb-build
+
 - name: Deploy YB masters
   hosts: masters
   become: true

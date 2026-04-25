@@ -39,3 +39,4 @@ jobs:
             YB_BUILD=${{ inputs.yb_build }}
           tags: |
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ inputs.yb_version }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ inputs.yb_version }}-${{ github.sha }}

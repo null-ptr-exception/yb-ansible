@@ -90,7 +90,28 @@ echo ""
 echo "All VMs created. Waiting for IPs..."
 sleep 30
 
+declare -A VM_IPS
 for vm in yb-ansible-master-1 yb-ansible-master-2 yb-ansible-master-3 yb-ansible-tserver-1; do
   ip=$(virsh domifaddr "$vm" 2>/dev/null | grep -oP '(\d+\.){3}\d+' || echo "pending...")
+  VM_IPS[$vm]=$ip
   echo "$vm: $ip"
+done
+
+KNOWN_HOSTS="${REPO_DIR}/.vms/known_hosts"
+echo ""
+echo "Collecting SSH host keys into ${KNOWN_HOSTS}..."
+> "$KNOWN_HOSTS"
+for vm in "${!VM_IPS[@]}"; do
+  ip="${VM_IPS[$vm]}"
+  if [[ "$ip" == "pending..." ]]; then
+    echo "Skipping $vm (no IP yet)"
+    continue
+  fi
+  for attempt in $(seq 1 10); do
+    if ssh-keyscan -H "$ip" >> "$KNOWN_HOSTS" 2>/dev/null; then
+      echo "$vm ($ip): host key added"
+      break
+    fi
+    sleep 3
+  done
 done

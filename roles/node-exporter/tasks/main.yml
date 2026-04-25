@@ -22,7 +22,7 @@
 
 - name: Pull node-exporter image
   ansible.builtin.command:
-    cmd: podman pull {{ node_exporter_image }}
+    cmd: podman pull {% if not (podman_tls_verify | bool) %}--tls-verify=false {% endif %}{{ node_exporter_image }}
   register: podman_pull
   changed_when: "'Already exists' not in podman_pull.stdout"
   when: not ne_installed.stat.exists and ne_image_exists.rc != 0

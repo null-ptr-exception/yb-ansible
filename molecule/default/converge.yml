@@ -4,11 +4,7 @@
   become: true
   roles:
     - common
-
-- name: Install YugabyteDB on all nodes
-  hosts: all
-  become: true
-  roles:
+    - node-exporter
     - yb-build
 
 - name: Deploy YB masters

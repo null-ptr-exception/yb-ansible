@@ -8,6 +8,8 @@ jobs:
     runs-on: [self-hosted, nuc-rophy]
     env:
       LIBVIRT_DEFAULT_URI: qemu:///system
+      DOCKER_CACHE: host.internal:5000
+      GHCR_CACHE: host.internal:5001
 
     steps:
       - uses: actions/checkout@v4
@@ -81,7 +83,10 @@ jobs:
           set -a
           source molecule/default/.env
           set +a
-          molecule test
+          molecule test -- \
+            -e "yb_shipper_registry=${GHCR_CACHE}" \
+            -e "node_exporter_registry=${DOCKER_CACHE}" \
+            -e "podman_tls_verify=false"
         env:
           ANSIBLE_HOST_KEY_CHECKING: "false"
 

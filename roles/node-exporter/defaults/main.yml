@@ -3,5 +3,7 @@ node_exporter_registry: "docker.io"
 node_exporter_repository: "prom/node-exporter"
 node_exporter_tag: "v1.11.1-distroless"
 node_exporter_image: "{{ node_exporter_registry }}/{{ node_exporter_repository }}:{{ node_exporter_tag }}"
+node_exporter_package_dir: /opt/packages/node-exporter/{{ node_exporter_tag }}
+node_exporter_package_cache_dir: "{{ playbook_dir }}/.cache/packages/node-exporter/{{ node_exporter_tag }}"
 node_exporter_install_dir: /opt/node-exporter
 node_exporter_port: 9200

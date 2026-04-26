@@ -3,6 +3,8 @@ yb_shipper_registry: "ghcr.io"
 yb_shipper_repository: "null-ptr-exception/yb-shipper"
 yb_shipper_tag: "2025.2.2.2"
 yb_shipper_image: "{{ yb_shipper_registry }}/{{ yb_shipper_repository }}:{{ yb_shipper_tag }}"
+yb_package_dir: /opt/packages/yugabytedb/{{ yb_shipper_tag }}
+yb_package_cache_dir: "{{ playbook_dir }}/.cache/packages/yugabytedb/{{ yb_shipper_tag }}"
 yb_install_dir: /opt/yugabyte
 yb_user: yugabyte
 yb_group: yugabyte

@@ -5,8 +5,23 @@
   gather_facts: false
   vars:
     yb_install_dir: /opt/yugabyte
+    yb_shipper_tag: "2025.2.2.2"
+    yb_package_dir: /opt/packages/yugabytedb/{{ yb_shipper_tag }}
+    node_exporter_tag: "v1.11.1-distroless"
+    node_exporter_package_dir: /opt/packages/node-exporter/{{ node_exporter_tag }}
+    node_exporter_install_dir: /opt/node-exporter
     node_exporter_port: 9200
   tasks:
+    - name: Verify YB package tarball exists
+      ansible.builtin.stat:
+        path: "{{ yb_package_dir }}/yugabyte.tar.gz"
+      register: yb_tarball
+
+    - name: Assert YB package tarball is present
+      ansible.builtin.assert:
+        that: yb_tarball.stat.exists
+        fail_msg: "YugabyteDB tarball not found at {{ yb_package_dir }}/yugabyte.tar.gz"
+
     - name: Verify YB binary exists
       ansible.builtin.stat:
         path: "{{ yb_install_dir }}/bin/yb-master"
@@ -16,6 +31,36 @@
       ansible.builtin.assert:
         that: yb_binary.stat.exists
         fail_msg: "YugabyteDB binary not found at {{ yb_install_dir }}/bin/yb-master"
+
+    - name: Verify node-exporter package binary exists
+      ansible.builtin.stat:
+        path: "{{ node_exporter_package_dir }}/node_exporter"
+      register: ne_package_binary
+
+    - name: Assert node-exporter package binary is present
+      ansible.builtin.assert:
+        that: ne_package_binary.stat.exists
+        fail_msg: "node_exporter binary not found at {{ node_exporter_package_dir }}/node_exporter"
+
+    - name: Verify node-exporter symlink
+      ansible.builtin.stat:
+        path: "{{ node_exporter_install_dir }}/node_exporter"
+      register: ne_symlink
+
+    - name: Assert node-exporter is a symlink to package directory
+      ansible.builtin.assert:
+        that:
+          - ne_symlink.stat.islnk
+          - ne_symlink.stat.lnk_target == node_exporter_package_dir + '/node_exporter'
+        fail_msg: >-
+          Expected {{ node_exporter_install_dir }}/node_exporter to be a symlink to
+          {{ node_exporter_package_dir }}/node_exporter, got {{ ne_symlink.stat.lnk_target | default('not a symlink') }}
+
+    - name: Check node-exporter service is active
+      ansible.builtin.command:
+        cmd: systemctl is-active node-exporter
+      changed_when: false
+      become: true
 
     - name: Check node-exporter is listening
       ansible.builtin.wait_for:

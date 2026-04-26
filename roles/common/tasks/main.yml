@@ -1,11 +1,4 @@
 ---
-- name: Install podman
-  ansible.builtin.apt:
-    name:
-      - podman
-    state: present
-    update_cache: true
-
 - name: Create yugabyte group
   ansible.builtin.group:
     name: "{{ yb_group }}"

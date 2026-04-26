@@ -36,7 +36,6 @@ provisioner:
         ansible_user: ubuntu
         yb_shipper_registry: ${MOLECULE_YB_SHIPPER_REGISTRY:-ghcr.io}
         node_exporter_registry: ${MOLECULE_NODE_EXPORTER_REGISTRY:-docker.io}
-        podman_tls_verify: ${MOLECULE_PODMAN_TLS_VERIFY:-true}
   env:
     LIBVIRT_DEFAULT_URI: ${LIBVIRT_DEFAULT_URI:-qemu:///system}
   config_options:

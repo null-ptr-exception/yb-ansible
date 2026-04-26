@@ -40,7 +40,6 @@
   delegate_to: localhost
   run_once: true
   become: false
-  when: _yb_needs_install | bool
   block:
     - name: Create controller cache directory
       ansible.builtin.file:

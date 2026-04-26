@@ -16,7 +16,6 @@
   delegate_to: localhost
   run_once: true
   become: false
-  when: not ne_installed.stat.exists
   block:
     - name: Create controller cache directory
       ansible.builtin.file:

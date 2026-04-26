@@ -182,3 +182,24 @@
       loop: "{{ instance_conf }}"
       loop_control:
         label: "{{ item.instance }}"
+
+    - name: Build platform lookup
+      ansible.builtin.set_fact:
+        _platform_by_name: "{{ molecule_yml.platforms | items2dict(key_name='name', value_name='groups') }}"
+
+    - name: Write .vms/inventory for manual use
+      ansible.builtin.copy:
+        content: |
+          [all:vars]
+          ansible_user=ubuntu
+          ansible_ssh_common_args=-o UserKnownHostsFile={{ vm_dir }}/known_hosts
+
+          {% for group in _platform_by_name.values() | flatten | unique | sort %}
+          [{{ group }}]
+          {% for inst in instance_conf if group in _platform_by_name[inst.instance] %}
+          {{ inst.instance }} ansible_host={{ inst.address }}
+          {% endfor %}
+
+          {% endfor %}
+        dest: "{{ vm_dir }}/inventory"
+        mode: "0644"

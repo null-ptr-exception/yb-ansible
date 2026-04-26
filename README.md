@@ -19,21 +19,17 @@ source .venv/bin/activate
 pip install ansible
 ```
 
-2. Create your inventory and credentials:
+2. Create your inventory:
 
 ```bash
 cp inventory.example.ini inventory.ini
 # Edit inventory.ini with your host IPs
-
-cp .env.example .env
-# Edit .env with your values
 ```
 
-3. Run the playbook:
+3. Deploy:
 
 ```bash
-source .venv/bin/activate
-ansible-playbook site.yml
+ansible-playbook -i inventory.ini deploy.yml
 ```
 
 ## Inventory
@@ -53,6 +49,18 @@ Define two host groups — `masters` and `tservers`:
 ```
 
 In production, masters and tservers should run on separate VMs.
+
+## Playbooks
+
+| Playbook | Purpose |
+|---|---|
+| `deploy.yml` | Day 1 fresh install, day 2 add tservers |
+| `upgrade.yml` | Version upgrades and config changes (rolling restart) |
+| `restart.yml` | Rolling restart without config changes |
+
+`deploy.yml` includes pre-flight checks (master count validation, cluster membership verification) and will reject config or version changes on running nodes — use `upgrade.yml` for those.
+
+See [docs/playbooks.md](docs/playbooks.md) for detailed behavior and safety checks.
 
 ## Roles
 
@@ -96,19 +104,14 @@ Key variables:
 
 | Variable | Default | Description |
 |---|---|---|
-| `yb_version` | `2025.2.2.2` | YugabyteDB version |
-| `yb_shipper_image` | `ghcr.io/.../yb-shipper:{{ yb_version }}` | OCI image containing the YB tarball |
+| `yb_shipper_tag` | `2025.2.2.2` | YugabyteDB version |
+| `yb_shipper_image` | `ghcr.io/.../yb-shipper:{{ yb_shipper_tag }}` | OCI image containing the YB tarball |
 | `node_exporter_version` | `1.11.1` | Node-exporter version |
 | `node_exporter_image` | `prom/node-exporter:v...-distroless` | Node-exporter OCI image |
 | `node_exporter_port` | `9200` | Node-exporter listen port |
 | `yb_install_dir` | `/opt/yugabyte` | Installation directory |
 | `yb_data_dir` | `/data/yugabyte` | Data directory |
 | `yb_replication_factor` | `3` | Replication factor |
-| `yb_master_rpc_port` | `7100` | Master RPC port |
-| `yb_master_web_port` | `7000` | Master web UI port |
-| `yb_tserver_rpc_port` | `9100` | TServer RPC port |
-| `yb_tserver_web_port` | `9000` | TServer web UI port |
-| `db_port` | `5433` | YSQL proxy port |
 | `yb_tserver_flags` | `{}` | Additional tserver gflags |
 
 ### Adding tserver gflags
@@ -119,20 +122,60 @@ yb_tserver_flags:
   ysql_num_shards_per_tserver: 2
 ```
 
-## Local Development VMs
+## Development
 
-For local testing, `.vms/create-vms.sh` creates 4 VMs using libvirt/virsh:
+### Prerequisites
 
-- 3 master VMs (1 vCPU, 1 GB RAM)
-- 1 tserver VM (2 vCPU, 2 GB RAM)
-
-Requires an Ubuntu 22.04 cloud image at the path specified in the script.
+Ubuntu dev machine with libvirt and Python tooling:
 
 ```bash
-bash .vms/create-vms.sh
+# libvirt and VM tools
+sudo apt install -y qemu-kvm libvirt-daemon-system virtinst genisoimage
+
+# ensure your user can manage VMs
+sudo usermod -aG libvirt $USER
+# (log out and back in for group change to take effect)
+
+# verify the default network is active
+virsh net-list --all
+# if not: virsh net-start default
+
+# Python dependencies
+python3 -m venv .venv
+source .venv/bin/activate
+pip install ansible molecule
 ```
 
-After VMs are created, update `inventory.ini` with the assigned IPs.
+### Molecule test lifecycle
+
+Molecule manages local libvirt VMs (3 masters + 1 tserver) with snapshot caching for fast iteration:
+
+```bash
+molecule test          # full cycle: create → converge → idempotence → verify → destroy
+molecule create        # provision VMs only (or revert to snapshot, ~46s)
+molecule converge      # run deploy.yml against the VMs
+molecule verify        # run verification checks
+molecule destroy       # shut down VMs, preserve snapshots for next run
+```
+
+First `molecule create` builds VMs from scratch and takes a `clean-base` snapshot after cloud-init completes. Subsequent runs revert to the snapshot instead of recreating.
+
+To fully destroy VMs and snapshots:
+
+```bash
+MOLECULE_FULL_DESTROY=true molecule destroy
+```
+
+### Manual testing with molecule VMs
+
+`molecule create` writes a `.vms/inventory` file for running playbooks directly:
+
+```bash
+molecule create
+ansible-playbook -i .vms/inventory deploy.yml
+ansible-playbook -i .vms/inventory upgrade.yml
+molecule destroy && molecule create    # reset to clean OS
+```
 
 ## Supported Platforms
 

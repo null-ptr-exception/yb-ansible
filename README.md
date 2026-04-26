@@ -4,15 +4,25 @@ Ansible playbooks for deploying YugabyteDB on Ubuntu Linux VMs.
 
 ## Requirements
 
+**Controller (where you run Ansible):**
+
 - Python 3.12+ (use [mise](https://mise.jdx.dev/) — `mise install`)
-- Ubuntu 22.04 LTS target hosts
-- SSH access to all target hosts with sudo privileges
+- Ansible
+- podman — used to pull OCI shipper images and extract packages locally before pushing to nodes
+
+**Target nodes:**
+
+- Ubuntu 22.04 LTS
+- SSH access with sudo privileges
 
 ## Quick Start
 
-1. Set up the Python environment and install Ansible:
+1. Install prerequisites and set up the Python environment:
 
 ```bash
+# podman is required on the controller to pull and extract OCI images
+sudo apt install -y podman
+
 mise install
 python -m venv .venv
 source .venv/bin/activate
@@ -66,24 +76,26 @@ See [docs/playbooks.md](docs/playbooks.md) for detailed behavior and safety chec
 
 ### common
 
-Installs shared prerequisites on all nodes:
+Sets up shared prerequisites on all nodes:
 
-- **podman** — container runtime for OCI image handling
 - **yugabyte user/group** — system account for running YB processes
 
 ### node-exporter
 
-Installs Prometheus node-exporter on all nodes via podman:
+Installs Prometheus node-exporter on all nodes:
 
-- Pulls the `prom/node-exporter` OCI image and extracts the binary
+- Controller pulls the `prom/node-exporter` OCI image and extracts the binary
+- Binary shipped to `/opt/packages/node-exporter/<version>/` on each node
+- Symlinked to `/opt/node-exporter/node_exporter`
 - Runs as a systemd service on port 9200 (avoids conflict with yb-tserver RPC default 9100)
 
 ### yb-build
 
 Downloads and installs YugabyteDB on all nodes:
 
-- Pulls the OCI shipper image (or loads from a pre-staged tar)
-- Extracts the YugabyteDB tarball from the image
+- Controller pulls the OCI shipper image and extracts the tarball
+- Tarball shipped to `/opt/packages/yugabytedb/<version>/` on each node
+- Extracted to `/opt/yugabyte/`
 - Runs `bin/post_install.sh` to fix library paths
 
 ### yb-master

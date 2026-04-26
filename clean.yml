@@ -1,0 +1,52 @@
+---
+- name: Stop and clean YugabyteDB services
+  hosts: all
+  become: true
+  vars:
+    yb_data_dir: /data/yugabyte
+  tasks:
+    - name: Stop yb-tserver
+      ansible.builtin.systemd:
+        name: yb-tserver
+        state: stopped
+      failed_when: false
+
+    - name: Stop yb-master
+      ansible.builtin.systemd:
+        name: yb-master
+        state: stopped
+      failed_when: false
+
+    - name: Stop node-exporter
+      ansible.builtin.systemd:
+        name: node-exporter
+        state: stopped
+      failed_when: false
+
+    - name: Remove systemd units
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - /etc/systemd/system/yb-master.service
+        - /etc/systemd/system/yb-tserver.service
+        - /etc/systemd/system/node-exporter.service
+      notify: reload systemd
+
+    - name: Wipe data directories
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - "{{ yb_data_dir }}/master"
+        - "{{ yb_data_dir }}/tserver"
+
+    - name: Remove post_install marker
+      ansible.builtin.file:
+        path: /opt/yugabyte/.post_install_done
+        state: absent
+
+  handlers:
+    - name: reload systemd
+      ansible.builtin.systemd:
+        daemon_reload: true

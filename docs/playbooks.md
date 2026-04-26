@@ -187,6 +187,33 @@ Tservers
 ansible-playbook -i inventory.ini verify.yml
 ```
 
+## clean.yml
+
+Stops all YugabyteDB and node-exporter services, removes systemd units, and
+wipes data directories. Install directories and packages are preserved for
+quick redeploys.
+
+### Workflow
+
+```
+All nodes (parallel)
+│
+├─ Stop yb-tserver, yb-master, node-exporter
+├─ Remove systemd unit files
+├─ Reload systemd daemon
+├─ Wipe data dirs (master + tserver under yb_data_dir)
+└─ Remove post_install marker (so post_install.sh re-runs on next deploy)
+```
+
+### Usage
+
+```bash
+ansible-playbook -i inventory.ini clean.yml
+```
+
+After clean, run `deploy.yml` to redeploy. Packages and binaries are still
+in place, so no image pull or file transfer is needed.
+
 ## Future Playbooks
 
 | Playbook | Purpose |

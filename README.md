@@ -66,6 +66,7 @@ In production, masters and tservers should run on separate VMs.
 | `deploy.yml` | Day 1 fresh install, day 2 add tservers |
 | `upgrade.yml` | Version upgrades and config changes (rolling restart) |
 | `restart.yml` | Rolling restart without config changes |
+| `clean.yml` | Stop services, remove units, wipe data dirs |
 
 `deploy.yml` includes pre-flight checks (master count validation, cluster membership verification) and will reject config or version changes on running nodes — use `upgrade.yml` for those.
 

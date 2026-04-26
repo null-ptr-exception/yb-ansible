@@ -8,8 +8,8 @@
     vm_dir: "{{ lookup('env', 'MOLECULE_PROJECT_DIRECTORY') }}/.vms"
     base_img: "{{ vm_dir }}/ubuntu-22.04-cloudimg.img"
     base_img_url: https://cloud-images.ubuntu.com/releases/22.04/release/ubuntu-22.04-server-cloudimg-amd64.img
-    ssh_pub_key: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAINtJBZHaT6eSByrSE/min8SywDzig9Kou1Q5TwCPpsCD rophy"
-    ssh_identity_file: "{{ lookup('env', 'HOME') }}/.ssh/id_ed25519"
+    ssh_pub_key: "{{ lookup('env', 'MOLECULE_SSH_PUB_KEY') | default('ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAINtJBZHaT6eSByrSE/min8SywDzig9Kou1Q5TwCPpsCD rophy', true) }}"
+    ssh_identity_file: "{{ lookup('env', 'MOLECULE_SSH_IDENTITY_FILE') | default(lookup('env', 'HOME') ~ '/.ssh/id_ed25519', true) }}"
   tasks:
     - name: Create VM directory
       ansible.builtin.file:

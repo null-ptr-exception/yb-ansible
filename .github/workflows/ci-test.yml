@@ -8,65 +8,9 @@ jobs:
     runs-on: [self-hosted, nuc-rophy]
     env:
       LIBVIRT_DEFAULT_URI: qemu:///system
-      DOCKER_CACHE: host.internal:5000
-      GHCR_CACHE: host.internal:5001
 
     steps:
       - uses: actions/checkout@v4
-
-      - name: Revert VMs to clean snapshots
-        run: |
-          for vm in yb-ansible-master-1 yb-ansible-master-2 yb-ansible-master-3 yb-ansible-tserver-1; do
-            virsh snapshot-revert "$vm" clean-base
-          done
-
-      - name: Start VMs
-        run: |
-          for vm in yb-ansible-master-1 yb-ansible-master-2 yb-ansible-master-3 yb-ansible-tserver-1; do
-            virsh start "$vm"
-          done
-
-      - name: Wait for VMs to be SSH-ready and discover IPs
-        run: |
-          declare -A vm_ips
-          for vm in yb-ansible-master-1 yb-ansible-master-2 yb-ansible-master-3 yb-ansible-tserver-1; do
-            echo "Waiting for $vm..."
-            ready=false
-            for i in $(seq 1 60); do
-              ip=$(virsh domifaddr "$vm" 2>/dev/null | grep -oP '(\d+\.){3}\d+' || true)
-              if [ -n "$ip" ] && ssh -o StrictHostKeyChecking=no -o ConnectTimeout=3 ubuntu@"$ip" true 2>/dev/null; then
-                echo "$vm is ready at $ip"
-                vm_ips[$vm]=$ip
-                ready=true
-                break
-              fi
-              sleep 5
-            done
-            if [ "$ready" = false ]; then
-              echo "ERROR: $vm did not become SSH-ready within 5 minutes"
-              exit 1
-            fi
-          done
-
-          {
-            echo "YB_MASTER_1_IP=${vm_ips[yb-ansible-master-1]}"
-            echo "YB_MASTER_2_IP=${vm_ips[yb-ansible-master-2]}"
-            echo "YB_MASTER_3_IP=${vm_ips[yb-ansible-master-3]}"
-            echo "YB_TSERVER_1_IP=${vm_ips[yb-ansible-tserver-1]}"
-          } > molecule/default/.env
-          echo "Generated .env:"
-          cat molecule/default/.env
-
-      - name: Wait for cloud-init to finish
-        run: |
-          set -a
-          source molecule/default/.env
-          set +a
-          for ip in $YB_MASTER_1_IP $YB_MASTER_2_IP $YB_MASTER_3_IP $YB_TSERVER_1_IP; do
-            echo "Waiting for cloud-init on $ip..."
-            ssh -o StrictHostKeyChecking=no ubuntu@"$ip" 'cloud-init status --wait' 2>/dev/null
-            echo "$ip cloud-init done"
-          done
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -79,20 +23,10 @@ jobs:
           pip install ansible molecule
 
       - name: Run molecule test
-        run: |
-          set -a
-          source molecule/default/.env
-          set +a
-          molecule test -- \
-            -e "yb_shipper_registry=${GHCR_CACHE}" \
-            -e "node_exporter_registry=${DOCKER_CACHE}" \
-            -e "podman_tls_verify=false"
+        run: molecule test
         env:
-          ANSIBLE_HOST_KEY_CHECKING: "false"
-
-      - name: Shut down VMs
-        if: success()
-        run: |
-          for vm in yb-ansible-master-1 yb-ansible-master-2 yb-ansible-master-3 yb-ansible-tserver-1; do
-            virsh shutdown "$vm" 2>/dev/null || true
-          done
+          MOLECULE_SSH_PUB_KEY: ${{ secrets.MOLECULE_SSH_PUB_KEY }}
+          MOLECULE_SSH_IDENTITY_FILE: ${{ secrets.MOLECULE_SSH_IDENTITY_FILE }}
+          MOLECULE_YB_SHIPPER_REGISTRY: ${{ secrets.MOLECULE_YB_SHIPPER_REGISTRY }}
+          MOLECULE_NODE_EXPORTER_REGISTRY: ${{ secrets.MOLECULE_NODE_EXPORTER_REGISTRY }}
+          MOLECULE_PODMAN_TLS_VERIFY: "false"

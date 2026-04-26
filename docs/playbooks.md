@@ -2,18 +2,51 @@
 
 ## Overview
 
-Each playbook handles a distinct operational scenario. Roles are reusable building blocks (configure + ensure running); playbooks own the orchestration, verification, and restart strategy.
-
 | Playbook | Purpose | Execution |
 |---|---|---|
 | `deploy.yml` | Day 1 fresh install, day 2 add tservers | Parallel |
-| `upgrade.yml` | Version upgrades, config changes | Rolling (serial: 1) |
-| `replace-master.yml` | Replace a failed master node | Sequential, uses `yb-admin` |
-| `decommission-tserver.yml` | Remove tserver nodes | Sequential, drains tablets first |
+| `upgrade.yml` | Version upgrades and config changes | Rolling (serial: 1) |
+| `restart.yml` | Rolling restart without config changes | Rolling (serial: 1) |
+| `verify.yml` | Read-only health check | Parallel |
 
 ## deploy.yml
 
-For initial deployment and safe day-2 additions. All plays run in parallel (no `serial`).
+For initial deployment and safe day-2 additions. All plays run in parallel.
+
+### Workflow
+
+```
+Pre-flight checks (localhost)
+│
+├─ Assert master count is odd and non-zero
+├─ If any master is responding:
+│   └─ Query /api/v1/masters
+│   └─ Assert cluster membership matches inventory
+│
+▼
+Common prerequisites (all nodes)
+│
+├─ common: create yugabyte user/group, install directory
+├─ node-exporter: ship binary to nodes, symlink, start service
+└─ yb-build: ship tarball to nodes, extract, run post_install.sh
+    │
+    ├─ Controller: pull OCI image → extract to .cache/packages/
+    ├─ Ship to /opt/packages/<product>/<version>/ on each node
+    ├─ Skip if correct version already installed
+    └─ Fail if version change detected on running services
+│
+▼
+Deploy masters (masters group)
+│
+├─ yb-master role: configure + start systemd service
+└─ Verify: RPC/web ports, cluster has LEADER, all masters registered
+│
+▼
+Deploy tservers (tservers group)
+│
+├─ yb-tserver role: configure + start systemd service
+└─ Verify: RPC/YSQL ports, health check, tserver ALIVE, SELECT 1
+```
 
 ### What it handles
 
@@ -23,60 +56,140 @@ For initial deployment and safe day-2 additions. All plays run in parallel (no `
 
 ### Safety checks
 
-- **Master count validation (static)**: `groups['masters'] | length` must be odd (1, 3, 5, 7). Fails immediately if even or zero.
-- **Master membership validation (runtime)**: If any master is already responding, query `/api/v1/masters` and compare cluster membership against inventory. Fail on mismatch — master changes require `replace-master.yml`.
-- **Config change detection**: If a running node would receive config changes that trigger a handler restart, fail early. Config changes on running nodes belong in `upgrade.yml`.
+- **Master count validation**: Must be odd and non-zero. Fails immediately otherwise.
+- **Master membership validation**: If any master is already responding, queries `/api/v1/masters` and compares cluster membership against inventory. Fails on mismatch — master changes require `replace-master.yml`.
+- **Version change protection**: If a running node would receive a different YugabyteDB version, fails early. Version changes belong in `upgrade.yml`.
 
 ### What it does NOT handle
 
-- Adding or removing master nodes (master count is fixed to RF, set at cluster creation).
-- Config changes on existing nodes (requires rolling restart).
-- Version upgrades (requires rolling restart).
+- Adding or removing master nodes (master count equals RF, fixed at cluster creation).
+- Config changes on running nodes (requires rolling restart via `upgrade.yml`).
+- Version upgrades (requires rolling restart via `upgrade.yml`).
 
 ## upgrade.yml
 
-For rolling restarts: version upgrades and config changes on existing nodes. Uses `serial: 1` to process one node at a time.
+For version upgrades and config changes on existing nodes. Applies changes
+first, then triggers a rolling restart.
 
-### Procedure
+### Workflow
 
-Following [YugabyteDB upgrade docs](https://docs.yugabyte.com/stable/manage/upgrade-deployment/):
+```
+Common prerequisites (all nodes)
+│
+├─ common, node-exporter, yb-build (same as deploy.yml)
+└─ yb_allow_version_change: true (allows version changes on running nodes)
+│
+▼
+Apply config to masters (masters group)
+│
+├─ yb-master role with yb_allow_config_change: true
+└─ Config/version changes are applied but service not yet restarted
+│
+▼
+Apply config to tservers (tservers group)
+│
+├─ yb-tserver role with yb_allow_config_change: true
+└─ Config/version changes are applied but service not yet restarted
+│
+▼
+Rolling restart (imports restart.yml)
+│
+├─ Masters first, one at a time (serial: 1)
+│   ├─ Stop yb-master
+│   ├─ Start yb-master (with daemon_reload)
+│   ├─ Verify master health
+│   └─ Pause 60s for cluster to stabilize
+│
+└─ Tservers second, one at a time (serial: 1)
+    ├─ Stop yb-tserver
+    ├─ Start yb-tserver (with daemon_reload)
+    ├─ Verify tserver health
+    └─ Pause 60s for tablet rebalancing
+```
 
-1. **Masters first** (one at a time):
-   - Apply role (config + restart via handler)
-   - Verify master health (RPC port, web UI, cluster status, RAFT role)
-   - Pause 60s for cluster to stabilize before next master
-2. **Tservers second** (one at a time):
-   - Apply role (config + restart via handler)
-   - Verify tserver health (RPC port, web UI, tablet server status)
-   - Pause 60s for tablet load to rebalance before next tserver
+Following [YugabyteDB upgrade docs](https://docs.yugabyte.com/stable/manage/upgrade-deployment/),
+masters are restarted before tservers.
 
 ### What it handles
 
 - YugabyteDB version upgrades (new binary via `yb-build` role).
-- Configuration changes on existing masters and tservers.
+- Configuration changes (gflags, ports) on existing masters and tservers.
 
-## replace-master.yml (future)
+## restart.yml
 
-For replacing a failed master node with a new one at a different IP.
+Rolling restart of all YugabyteDB services without any config or version changes.
+Useful for recovering from issues or applying OS-level changes that require
+service restarts.
 
-### Procedure
+### Workflow
 
-1. Start new master process on replacement node.
-2. `yb-admin change_master_config ADD_SERVER <new_ip> <port>` — temporarily 4 members.
-3. `yb-admin change_master_config REMOVE_SERVER <old_ip> <port>` — back to RF members.
-4. Update `master_addresses` on all nodes to reflect new membership.
+```
+Masters (serial: 1)
+│
+├─ Stop yb-master
+├─ Start yb-master (daemon_reload)
+├─ Verify: RPC/web ports, cluster status, RAFT roles
+└─ Pause 60s before next master
+│
+▼
+Tservers (serial: 1)
+│
+├─ Stop yb-tserver
+├─ Start yb-tserver (daemon_reload)
+├─ Verify: RPC/YSQL ports, health check, tablet server status
+└─ Pause 60s before next tserver
+```
 
-### Notes
+Each node is verified healthy before proceeding to the next. If verification
+fails, the playbook stops — remaining nodes are not restarted.
 
-- `change_master_config` changes RAFT group membership, not quorum size. RF stays the same.
-- Master count must always equal RF (e.g., RF=3 means exactly 3 masters).
+### Tags
 
-## decommission-tserver.yml (future)
+- `--tags masters` — restart only masters
+- `--tags tservers` — restart only tservers
 
-For safely removing tserver nodes from the cluster.
+## verify.yml
 
-### Notes
+Read-only health check playbook. Makes no changes to any host.
 
-- Tablets must be drained from the node before stopping it.
-- The cluster rebalances remaining tablets across other tservers.
-- Distinct from simply stopping a tserver (which would leave under-replicated tablets).
+### Workflow
+
+```
+All nodes
+│
+├─ YugabyteDB binary exists at /opt/yugabyte/bin/yb-master
+├─ node-exporter listening on port 9200
+└─ node-exporter /metrics returns 200
+│
+▼
+Masters
+│
+├─ yb-master systemd service is active
+├─ RPC port 7100 listening
+├─ Web UI port 7000 reachable
+├─ Cluster has exactly one LEADER
+└─ All inventory masters have LEADER or FOLLOWER role
+│
+▼
+Tservers
+│
+├─ yb-tserver systemd service is active
+├─ RPC port 9100 listening
+├─ YSQL port 5433 listening
+├─ Health check API returns 200
+├─ All tservers ALIVE in master's tablet-server list
+└─ YSQL responds to SELECT 1
+```
+
+### Usage
+
+```bash
+ansible-playbook -i inventory.ini verify.yml
+```
+
+## Future Playbooks
+
+| Playbook | Purpose |
+|---|---|
+| `replace-master.yml` | Replace a failed master node at a different IP using `yb-admin change_master_config` |
+| `decommission-tserver.yml` | Safely remove tserver nodes by draining tablets first |

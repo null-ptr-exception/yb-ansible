@@ -6,7 +6,7 @@ Ansible playbooks for deploying YugabyteDB on Ubuntu Linux VMs.
 
 **Controller (where you run Ansible):**
 
-- Python 3.12+ (use [mise](https://mise.jdx.dev/) — `mise install`)
+- Python 3.12+
 - Ansible
 - podman — used to pull OCI shipper images and extract packages locally before pushing to nodes
 
@@ -23,8 +23,7 @@ Ansible playbooks for deploying YugabyteDB on Ubuntu Linux VMs.
 # podman is required on the controller to pull and extract OCI images
 sudo apt install -y podman
 
-mise install
-python -m venv .venv
+python3 -m venv .venv
 source .venv/bin/activate
 pip install ansible
 ```
@@ -118,13 +117,12 @@ Key variables:
 |---|---|---|
 | `yb_shipper_tag` | `2025.2.2.2` | YugabyteDB version |
 | `yb_shipper_image` | `ghcr.io/.../yb-shipper:{{ yb_shipper_tag }}` | OCI image containing the YB tarball |
-| `node_exporter_version` | `1.11.1` | Node-exporter version |
-| `node_exporter_image` | `prom/node-exporter:v...-distroless` | Node-exporter OCI image |
-| `node_exporter_port` | `9200` | Node-exporter listen port |
-| `yb_install_dir` | `/opt/yugabyte` | Installation directory |
-| `yb_data_dir` | `/data/yugabyte` | Data directory |
+| `yb_install_dir` | `/opt/yugabyte` | YugabyteDB installation directory |
+| `yb_data_dir` | `/data/yugabyte` | YugabyteDB data directory |
 | `yb_replication_factor` | `3` | Replication factor |
 | `yb_tserver_flags` | `{}` | Additional tserver gflags |
+| `node_exporter_tag` | `v1.11.1-distroless` | Node-exporter image tag |
+| `node_exporter_port` | `9200` | Node-exporter listen port |
 
 ### Adding tserver gflags
 

@@ -1,259 +1,132 @@
-# yb-ansible: Ansible Playbooks for YugabyteDB on Linux
+# Solution Overview
 
 ## Purpose
 
-General-purpose Ansible playbooks for deploying YugabyteDB on Linux VMs.
-No assumptions about benchmarking, monitoring backends, or workload tooling —
-just the database and basic host observability.
-
-## Project Structure
-
-Plain repo of roles (not an Ansible Galaxy collection):
-
-```
-roles/
-  common/
-  node-exporter/
-  yb-build/
-  yb-master/
-  yb-tserver/
-site.yml
-verify.yml
-molecule/
-inventory.ini
-```
-
-## Scope
-
-Five roles:
-
-| Role | Responsibility |
-|---|---|
-| `common` | Install shared prerequisites (podman, yugabyte user/group) |
-| `node-exporter` | Install Prometheus node-exporter from OCI image as a systemd service |
-| `yb-build` | Download and install YugabyteDB tarball via OCI shipper image, run `post_install.sh` |
-| `yb-master` | Deploy a YB master instance as a systemd service |
-| `yb-tserver` | Deploy a YB tserver instance as a systemd service |
-
-### Out of scope (current phase)
-
-- Benchmark tooling (k6, sysbench)
-- Prometheus / Grafana / monitoring backends
-- Kubernetes deployment (use the upstream Helm chart for that)
-- Cloud-specific provisioning (VMs are assumed to exist)
-- Upgrades / rolling restarts
-- Placement info (`--placement_cloud`, `--placement_region`, `--placement_zone`)
-- Multiple `--fs_data_dirs` for tserver
+Ansible playbooks for deploying and managing YugabyteDB on Linux VMs.
 
 ## Architecture
 
+```
+┌─────────────────────────────────────────────────────────────┐
+│                   Ansible Controller                        │
+│                                                             │
+│  podman pull  ──►  .cache/packages/  ──►  push to nodes    │
+│  (OCI images)      (local cache)          (copy/unarchive)  │
+└──────────────────────┬──────────────────────────────────────┘
+                       │ SSH
+           ┌───────────┼───────────────┐
+           ▼           ▼               ▼
+      ┌─────────┐ ┌─────────┐    ┌─────────┐
+      │ master  │ │ tserver  │    │ tserver  │
+      │ node    │ │ node 1   │    │ node N   │
+      │         │ │          │    │          │
+      │ common  │ │ common   │    │ common   │
+      │ node-exp│ │ node-exp │    │ node-exp │
+      │ yb-build│ │ yb-build │    │ yb-build │
+      │ yb-mstr │ │ yb-tsvr  │    │ yb-tsvr  │
+      └─────────┘ └─────────┘    └─────────┘
+```
+
 In production, masters and tservers run on separate VMs. Single-node
-(colocated master + tserver) is supported for local development and
-testing only.
+(colocated master + tserver) is supported for development and testing.
+
+## Package Distribution (Push Mode)
+
+The controller pulls OCI images, extracts binaries/tarballs locally, and
+pushes them to nodes. Target nodes do not need podman or registry access.
 
 ```
-┌─────────────────────────────────────────────────┐
-│              Ansible Control Host                │
-│                                                  │
-│  ansible-playbook site.yml -i inventory.ini      │
-└──────────────────┬───────────────────────────────┘
-                   │ SSH
-       ┌───────────┼───────────────┐
-       ▼           ▼               ▼
-  ┌─────────┐ ┌─────────┐    ┌─────────┐
-  │ master  │ │ tserver  │    │ tserver  │
-  │ node    │ │ node 1   │    │ node N   │
-  │         │ │          │    │          │
-  │ roles:  │ │ roles:      │    │ roles:      │
-  │ common  │ │ common      │    │ common      │
-  │ node-exp│ │ node-exp    │    │ node-exp    │
-  │ yb-build│ │ yb-build    │    │ yb-build    │
-  │ yb-master│ │ yb-tserver │    │ yb-tserver  │
-  └─────────┘ └─────────┘    └─────────┘
+OCI Registry
+    │
+    ▼ podman pull (controller only, once)
+.cache/packages/<product>/<version>/
+    │
+    ▼ ansible copy/unarchive (to each node)
+/opt/packages/<product>/<version>/
+    │
+    ▼ extract or symlink
+/opt/yugabyte/          (YB tarball extracted here)
+/opt/node-exporter/     (symlink to package dir)
 ```
 
-### Role: common
+This approach:
+- Works in air-gapped environments (controller pulls from a private registry)
+- Only the controller needs registry credentials — nodes need nothing
+- Caches packages on both the controller and each node for reinstalls
+- Podman is only required on the controller, not target nodes
 
-Installs shared prerequisites on all nodes:
+### OCI Shipper Image
 
-- **podman** — container runtime for OCI image handling. Lightweight
-  and daemonless.
-- **yugabyte user/group** — system account for running YB processes.
+The YugabyteDB tarball is distributed via a minimal `scratch`-based OCI image
+("YB shipper") containing only `/tarball/yugabyte.tar.gz`. Built via
+`shipper/Dockerfile` and published to GHCR via GitHub Actions.
 
-### Role: node-exporter
+## Roles
 
-Installs Prometheus node-exporter from an OCI image:
+| Role | Responsibility |
+|---|---|
+| `common` | Create yugabyte user/group and install directory |
+| `node-exporter` | Install Prometheus node-exporter binary, run as systemd service (port 9200) |
+| `yb-build` | Ship and extract YugabyteDB tarball, run `post_install.sh` |
+| `yb-master` | Deploy a YB master instance as a systemd service |
+| `yb-tserver` | Deploy a YB tserver instance as a systemd service |
 
-- Pulls `prom/node-exporter:v1.11.1-distroless` via podman
-- Extracts the binary to `/opt/node-exporter/`
-- Installs as a systemd service on port 9200 (avoids conflict with
-  yb-tserver RPC default 9100)
+### node-exporter
 
-### Role: yb-build
+- Controller extracts binary from `prom/node-exporter` OCI image
+- Binary shipped to `/opt/packages/node-exporter/<version>/` on each node
+- Symlinked to `/opt/node-exporter/node_exporter`
+- Runs on port 9200 (avoids conflict with yb-tserver RPC default 9100)
 
-Downloads and installs YugabyteDB on all nodes:
+### yb-build
 
-- Pulls the YB shipper OCI image (or loads from a pre-staged tar)
-- Extracts the tarball to `yb_install_dir` (default `/opt/yugabyte`)
-- Runs `./bin/post_install.sh` to fix library paths
+- Controller extracts tarball from the YB shipper OCI image
+- Tarball shipped to `/opt/packages/yugabytedb/<version>/` on each node
+- Extracted to `/opt/yugabyte/` with `--strip-components=1`
+- Runs `bin/post_install.sh` to rewrite hardcoded library paths via `patchelf`
+- Idempotent: `.post_install_done` marker prevents re-running
 
-#### post_install.sh
+### yb-master
 
-Ships inside the YB tarball at `bin/post_install.sh`. It uses `patchelf`
-to rewrite hardcoded Linuxbrew library paths to match the actual
-installation directory. Without it, YB binaries may fail to find shared
-libraries at runtime.
+- Creates data directory at `yb_data_dir`
+- `--master_addresses` auto-derived from the `masters` inventory group
+- Configures `--replication_factor`, bind addresses
+- Installs and starts systemd service
 
-- Must be run from the real (non-symlinked) install path
-- Idempotent — the role creates a `.post_install_done` marker file after successful execution
-- Must be re-run after upgrades
+### yb-tserver
 
-### Role: yb-master
+- Creates data directory at `yb_data_dir`
+- Connects to masters via `--tserver_master_addrs` (auto-derived)
+- YSQL proxy on port 5433 (configurable via `db_port`)
+- Supports arbitrary gflags via `yb_tserver_flags`
+- Installs and starts systemd service
 
-Deploys one YB master instance per node:
+## Verification
 
-- Creates data directory
-- Installs systemd unit
-- Configures `--master_addresses` (auto-generated from inventory),
-  `--replication_factor`, bind addresses
-- Starts and enables the service
-
-`yb_master_addresses` is automatically derived from the `masters`
-inventory group and `yb_master_rpc_port`, not manually specified.
-
-Key variables:
-```yaml
-yb_master_rpc_port: 7100
-yb_master_web_port: 7000
-yb_replication_factor: 3
-```
-
-### Role: yb-tserver
-
-Deploys one YB tserver instance per node:
-
-- Creates data directory
-- Installs systemd unit with configurable gflags
-- Connects to masters via `--tserver_master_addrs` (auto-generated)
-- Binds YSQL proxy on configurable port (default 5433)
-- Starts and enables the service
-
-Key variables:
-```yaml
-yb_tserver_flags:
-  yb_num_shards_per_tserver: 2
-  ysql_num_shards_per_tserver: 2
-```
-
-Additional flags are passed as key-value pairs and rendered into the
-systemd ExecStart line.
-
-## Post-Deployment Verification
-
-Two complementary verification layers:
+Two complementary layers:
 
 ### Role verify tasks
 
-Each role includes a `verify.yml` that runs at the end of deployment.
-If verification fails, the deployment fails immediately.
+Each role includes `verify.yml` that runs at the end of deployment.
+If verification fails, deployment fails immediately.
 
-- **node-exporter** — node-exporter listening and responding on configured port
-- **yb-build** — YB binary exists at install path
+- **yb-build** — binary exists, version matches `yb_shipper_tag`
+- **node-exporter** — port listening, `/metrics` returns 200
 - **yb-master** — RPC/web ports listening, master API returns LEADER/FOLLOWER roles
-- **yb-tserver** — RPC/YSQL ports listening, health-check API returns 200, YSQL responds to `SELECT 1`
+- **yb-tserver** — RPC/YSQL ports listening, health-check API returns 200, `SELECT 1` succeeds
 
 ### Standalone verify.yml playbook
 
-A read-only playbook for on-demand health checks (`ansible-playbook verify.yml`).
-Performs deeper cluster-level assertions:
+Read-only playbook for on-demand health checks. Performs cluster-level assertions:
 
 - Cluster has exactly one LEADER master
 - All inventory masters are present in the cluster
 - All tservers are ALIVE in the master's tablet-server list
 
-## YugabyteDB Distribution
-
-The playbooks use an OCI image ("YB shipper") to distribute the
-YugabyteDB tarball. This approach:
-
-- Works in air-gapped environments (pre-pull the image to a local registry)
-- Avoids downloading multi-hundred-MB tarballs over the internet on each node
-- Caches image layers so version upgrades are incremental
-- Uses podman (rootless, daemonless) — no Docker required
-
-The shipper image is built via `shipper/Dockerfile` and published to
-GHCR via GitHub Actions (`.github/workflows/build-shipper.yml`).
-The image contains only the YB tarball at `/tarball/yugabyte.tar.gz`.
-
-## Credentials
-
-No credentials are hardcoded in the playbooks or default variables.
-Database credentials must be provided via a `.env` file or equivalent
-mechanism that is gitignored. The repository includes a `.env.example`
-template.
-
-## Example Inventory
-
-```ini
-[masters]
-10.0.0.1 ansible_user=ubuntu
-10.0.0.2 ansible_user=ubuntu
-10.0.0.3 ansible_user=ubuntu
-
-[tservers]
-10.0.0.4 ansible_user=ubuntu
-10.0.0.5 ansible_user=ubuntu
-10.0.0.6 ansible_user=ubuntu
-```
-
-## Example Playbook
-
-```yaml
-- hosts: all
-  roles:
-    - common
-    - node-exporter
-    - yb-build
-
-- hosts: masters
-  roles:
-    - yb-master
-
-- hosts: tservers
-  roles:
-    - yb-tserver
-```
-
-## Default Variables
-
-```yaml
-# YugabyteDB version and paths
-yb_version: "2025.2.2.2"
-yb_shipper_image: "ghcr.io/null-ptr-exception/yb-shipper:{{ yb_version }}-<git-sha>"
-yb_install_dir: /opt/yugabyte
-yb_data_dir: /data/yugabyte
-yb_replication_factor: 3
-
-# Node-exporter
-node_exporter_version: "1.11.1"
-node_exporter_image: "docker.io/prom/node-exporter:v{{ node_exporter_version }}-distroless"
-node_exporter_port: 9200
-
-# Ports
-yb_master_rpc_port: 7100
-yb_master_web_port: 7000
-yb_tserver_rpc_port: 9100
-yb_tserver_web_port: 9000
-db_port: 5433
+```bash
+ansible-playbook -i inventory.ini verify.yml
 ```
 
 ## Supported Platforms
 
 - Ubuntu 22.04 LTS
-
-## Future Work
-
-- Placement info (cloud/region/zone) for multi-DC and rack-aware deployments
-- Multiple `--fs_data_dirs` for tserver (multiple disks)
-- Upgrades / rolling restart playbook
-- Ansible Galaxy collection packaging

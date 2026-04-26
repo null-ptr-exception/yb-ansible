@@ -1,17 +1,41 @@
 ---
-- name: "Check if {{ vm_prefix }}-{{ platform.name }} is running"
+- name: "Check if {{ vm_prefix }}-{{ platform.name }} exists"
   ansible.builtin.command:
     cmd: "virsh domstate {{ vm_prefix }}-{{ platform.name }}"
   register: _vm_state
   changed_when: false
   failed_when: false
 
-- name: "Skip {{ vm_prefix }}-{{ platform.name }} (already running)"
-  ansible.builtin.debug:
-    msg: "VM already running, skipping creation"
-  when:
-    - _vm_state.rc == 0
-    - "'running' in _vm_state.stdout"
+- name: "Check for clean-base snapshot on {{ vm_prefix }}-{{ platform.name }}"
+  ansible.builtin.command:
+    cmd: "virsh snapshot-list {{ vm_prefix }}-{{ platform.name }} --name"
+  register: _vm_snapshots
+  changed_when: false
+  failed_when: false
+  when: _vm_state.rc == 0
+
+- name: Set snapshot availability fact
+  ansible.builtin.set_fact:
+    _has_snapshot: >-
+      {{ _vm_state.rc == 0
+         and 'clean-base' in (_vm_snapshots.stdout_lines | default([])) }}
+
+- name: "Revert {{ vm_prefix }}-{{ platform.name }} to clean-base snapshot"
+  when: _has_snapshot | bool
+  block:
+    - name: Force off VM before revert
+      ansible.builtin.command:
+        cmd: "virsh destroy {{ vm_prefix }}-{{ platform.name }}"
+      failed_when: false
+      changed_when: true
+
+    - name: Revert to clean-base snapshot
+      ansible.builtin.command:
+        cmd: "virsh snapshot-revert {{ vm_prefix }}-{{ platform.name }} clean-base"
+
+    - name: Start VM from snapshot
+      ansible.builtin.command:
+        cmd: "virsh start {{ vm_prefix }}-{{ platform.name }}"
 
 - name: "Clean up stale {{ vm_prefix }}-{{ platform.name }}"
   ansible.builtin.shell:
@@ -23,11 +47,12 @@
       rm -f {{ vm_dir }}/{{ vm_prefix }}-{{ platform.name }}-cidata.iso
     executable: /bin/bash
   when:
+    - not (_has_snapshot | bool)
     - _vm_state.rc == 0
     - "'running' not in _vm_state.stdout"
 
 - name: "Create {{ vm_prefix }}-{{ platform.name }}"
-  when: _vm_state.rc != 0 or 'running' not in _vm_state.stdout
+  when: not (_has_snapshot | bool) and (_vm_state.rc != 0 or 'running' not in _vm_state.stdout)
   block:
     - name: Create disk from base image
       ansible.builtin.command:
@@ -94,3 +119,9 @@
           --graphics none
           --noautoconsole
           --import
+
+- name: Track VMs needing snapshot
+  ansible.builtin.set_fact:
+    _vms_needing_snapshot: >-
+      {{ _vms_needing_snapshot | default([])
+         + ([] if (_has_snapshot | bool) else [platform.name]) }}

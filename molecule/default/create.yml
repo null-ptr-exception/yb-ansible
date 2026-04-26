@@ -91,7 +91,7 @@
       loop_control:
         label: "{{ item.instance }}"
 
-    - name: Wait for cloud-init to finish
+    - name: Wait for cloud-init to finish (new VMs only)
       ansible.builtin.command:
         cmd: >-
           ssh -o StrictHostKeyChecking=no
@@ -99,7 +99,7 @@
           -i {{ ssh_identity_file }}
           ubuntu@{{ item.address }}
           cloud-init status --wait
-      loop: "{{ instance_conf }}"
+      loop: "{{ instance_conf | selectattr('instance', 'in', _vms_needing_snapshot | default([])) | list }}"
       loop_control:
         label: "{{ item.instance }}"
       changed_when: false
@@ -107,6 +107,45 @@
       delay: 10
       until: _cloud_init.rc == 0
       register: _cloud_init
+
+    - name: Take snapshots of newly created VMs
+      when: (_vms_needing_snapshot | default([])) | length > 0
+      block:
+        - name: Shut down new VMs for snapshot
+          ansible.builtin.command:
+            cmd: "virsh shutdown {{ vm_prefix }}-{{ item }}"
+          loop: "{{ _vms_needing_snapshot }}"
+
+        - name: Wait for VMs to shut off
+          ansible.builtin.command:
+            cmd: "virsh domstate {{ vm_prefix }}-{{ item }}"
+          register: _shutdown_state
+          until: "'shut off' in _shutdown_state.stdout"
+          retries: 30
+          delay: 2
+          changed_when: false
+          loop: "{{ _vms_needing_snapshot }}"
+
+        - name: Take clean-base snapshots
+          ansible.builtin.command:
+            cmd: >-
+              virsh snapshot-create-as {{ vm_prefix }}-{{ item }}
+              clean-base --description "Clean OS for molecule tests"
+          loop: "{{ _vms_needing_snapshot }}"
+
+        - name: Start VMs after snapshot
+          ansible.builtin.command:
+            cmd: "virsh start {{ vm_prefix }}-{{ item }}"
+          loop: "{{ _vms_needing_snapshot }}"
+
+        - name: Wait for SSH after snapshot restart
+          ansible.builtin.wait_for:
+            host: "{{ item.address }}"
+            port: 22
+            timeout: 120
+          loop: "{{ instance_conf | selectattr('instance', 'in', _vms_needing_snapshot) | list }}"
+          loop_control:
+            label: "{{ item.instance }}"
 
     - name: Collect SSH host keys
       ansible.builtin.shell:

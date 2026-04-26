@@ -1,0 +1,145 @@
+---
+- name: Create molecule instances
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    vm_prefix: yb-ansible
+    vm_dir: "{{ lookup('env', 'MOLECULE_PROJECT_DIRECTORY') }}/.vms"
+    base_img: "{{ vm_dir }}/ubuntu-22.04-cloudimg.img"
+    base_img_url: https://cloud-images.ubuntu.com/releases/22.04/release/ubuntu-22.04-server-cloudimg-amd64.img
+    ssh_pub_key: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAINtJBZHaT6eSByrSE/min8SywDzig9Kou1Q5TwCPpsCD rophy"
+    ssh_identity_file: "{{ lookup('env', 'HOME') }}/.ssh/id_ed25519"
+  tasks:
+    - name: Create VM directory
+      ansible.builtin.file:
+        path: "{{ vm_dir }}"
+        state: directory
+        mode: "0755"
+
+    - name: Check base image exists
+      ansible.builtin.stat:
+        path: "{{ base_img }}"
+      register: _base_img
+
+    - name: Download base image if missing
+      ansible.builtin.get_url:
+        url: "{{ base_img_url }}"
+        dest: "{{ base_img }}"
+        mode: "0644"
+      when: not _base_img.stat.exists
+
+    - name: Create VMs
+      ansible.builtin.include_tasks: tasks/create_vm.yml
+      loop: "{{ molecule_yml.platforms }}"
+      loop_control:
+        loop_var: platform
+
+    - name: Wait for VMs to get IPs
+      ansible.builtin.pause:
+        seconds: 30
+
+    - name: Discover VM IPs
+      ansible.builtin.command:
+        cmd: "virsh domifaddr {{ vm_prefix }}-{{ item.name }}"
+      register: _vm_ips
+      loop: "{{ molecule_yml.platforms }}"
+      loop_control:
+        label: "{{ item.name }}"
+      changed_when: false
+      failed_when: false
+      retries: 15
+      delay: 10
+      until:
+        - _vm_ips.rc == 0
+        - _vm_ips.stdout | regex_search('(\d+\.){3}\d+') is not none
+
+    - name: Fail if any VM has no IP
+      ansible.builtin.fail:
+        msg: "VM {{ item.item.name }} did not get an IP address"
+      when: item.stdout | regex_search('(\d+\.){3}\d+') is none
+      loop: "{{ _vm_ips.results }}"
+      loop_control:
+        label: "{{ item.item.name }}"
+
+    - name: Build instance config
+      ansible.builtin.set_fact:
+        instance_conf: >-
+          {{ instance_conf | default([]) + [{
+            'instance': item.item.name,
+            'address': item.stdout | regex_search('(\d+\.){3}\d+'),
+            'user': 'ubuntu',
+            'port': '22',
+            'identity_file': ssh_identity_file
+          }] }}
+      loop: "{{ _vm_ips.results }}"
+      loop_control:
+        label: "{{ item.item.name }}"
+
+    - name: Write instance config
+      ansible.builtin.copy:
+        content: "{{ instance_conf | to_nice_yaml }}"
+        dest: "{{ molecule_instance_config }}"
+        mode: "0644"
+
+    - name: Wait for SSH on all instances
+      ansible.builtin.wait_for:
+        host: "{{ item.address }}"
+        port: 22
+        timeout: 120
+      loop: "{{ instance_conf }}"
+      loop_control:
+        label: "{{ item.instance }}"
+
+    - name: Wait for cloud-init to finish
+      ansible.builtin.command:
+        cmd: >-
+          ssh -o StrictHostKeyChecking=no
+          -o UserKnownHostsFile=/dev/null
+          -i {{ ssh_identity_file }}
+          ubuntu@{{ item.address }}
+          cloud-init status --wait
+      loop: "{{ instance_conf }}"
+      loop_control:
+        label: "{{ item.instance }}"
+      changed_when: false
+      retries: 10
+      delay: 10
+      until: _cloud_init.rc == 0
+      register: _cloud_init
+
+    - name: Collect SSH host keys
+      ansible.builtin.shell:
+        cmd: >-
+          ssh-keyscan -H {{ item.address }}
+        executable: /bin/bash
+      register: _host_keys
+      loop: "{{ instance_conf }}"
+      loop_control:
+        label: "{{ item.instance }}"
+      changed_when: false
+
+    - name: Write known_hosts
+      ansible.builtin.copy:
+        content: "{{ _host_keys.results | map(attribute='stdout') | join('\n') }}\n"
+        dest: "{{ vm_dir }}/known_hosts"
+        mode: "0644"
+
+    - name: Find molecule inventory directory
+      ansible.builtin.set_fact:
+        _molecule_inv_dir: "{{ molecule_instance_config | dirname }}/inventory"
+
+    - name: Create host_vars directory
+      ansible.builtin.file:
+        path: "{{ _molecule_inv_dir }}/host_vars"
+        state: directory
+        mode: "0755"
+
+    - name: Write ansible_host for each instance
+      ansible.builtin.copy:
+        content: "ansible_host: {{ item.address }}\n"
+        dest: "{{ _molecule_inv_dir }}/host_vars/{{ item.instance }}"
+        mode: "0644"
+      loop: "{{ instance_conf }}"
+      loop_control:
+        label: "{{ item.instance }}"

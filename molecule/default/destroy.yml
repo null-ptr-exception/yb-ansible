@@ -1,0 +1,40 @@
+---
+- name: Destroy molecule instances
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    vm_prefix: yb-ansible
+    vm_dir: "{{ lookup('env', 'MOLECULE_PROJECT_DIRECTORY') }}/.vms"
+  tasks:
+    - name: Destroy VMs
+      ansible.builtin.shell:
+        cmd: |
+          virsh destroy {{ vm_prefix }}-{{ item.name }} 2>/dev/null || true
+          virsh undefine {{ vm_prefix }}-{{ item.name }} --snapshots-metadata --remove-all-storage 2>/dev/null \
+            || virsh undefine {{ vm_prefix }}-{{ item.name }} --snapshots-metadata 2>/dev/null || true
+        executable: /bin/bash
+      loop: "{{ molecule_yml.platforms }}"
+      loop_control:
+        label: "{{ item.name }}"
+      changed_when: true
+
+    - name: Clean up cloud-init files
+      ansible.builtin.shell:
+        cmd: "rm -f {{ vm_dir }}/{{ vm_prefix }}-{{ item.name }}-*"
+        executable: /bin/bash
+      loop: "{{ molecule_yml.platforms }}"
+      loop_control:
+        label: "{{ item.name }}"
+      changed_when: true
+
+    - name: Clean up known_hosts
+      ansible.builtin.file:
+        path: "{{ vm_dir }}/known_hosts"
+        state: absent
+
+    - name: Write empty instance config
+      ansible.builtin.copy:
+        content: "[]"
+        dest: "{{ molecule_instance_config }}"
+        mode: "0644"

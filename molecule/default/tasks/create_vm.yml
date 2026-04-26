@@ -1,0 +1,96 @@
+---
+- name: "Check if {{ vm_prefix }}-{{ platform.name }} is running"
+  ansible.builtin.command:
+    cmd: "virsh domstate {{ vm_prefix }}-{{ platform.name }}"
+  register: _vm_state
+  changed_when: false
+  failed_when: false
+
+- name: "Skip {{ vm_prefix }}-{{ platform.name }} (already running)"
+  ansible.builtin.debug:
+    msg: "VM already running, skipping creation"
+  when:
+    - _vm_state.rc == 0
+    - "'running' in _vm_state.stdout"
+
+- name: "Clean up stale {{ vm_prefix }}-{{ platform.name }}"
+  ansible.builtin.shell:
+    cmd: |
+      virsh destroy {{ vm_prefix }}-{{ platform.name }} 2>/dev/null || true
+      virsh undefine {{ vm_prefix }}-{{ platform.name }} --snapshots-metadata --remove-all-storage 2>/dev/null \
+        || virsh undefine {{ vm_prefix }}-{{ platform.name }} --snapshots-metadata 2>/dev/null || true
+      rm -f {{ vm_dir }}/{{ vm_prefix }}-{{ platform.name }}.qcow2
+      rm -f {{ vm_dir }}/{{ vm_prefix }}-{{ platform.name }}-cidata.iso
+    executable: /bin/bash
+  when:
+    - _vm_state.rc == 0
+    - "'running' not in _vm_state.stdout"
+
+- name: "Create {{ vm_prefix }}-{{ platform.name }}"
+  when: _vm_state.rc != 0 or 'running' not in _vm_state.stdout
+  block:
+    - name: Create disk from base image
+      ansible.builtin.command:
+        cmd: >-
+          qemu-img create -f qcow2
+          -b {{ base_img }} -F qcow2
+          {{ vm_dir }}/{{ vm_prefix }}-{{ platform.name }}.qcow2
+          {{ platform.disk_gb | default(10) }}G
+
+    - name: Write cloud-init meta-data
+      ansible.builtin.copy:
+        content: |
+          instance-id: {{ vm_prefix }}-{{ platform.name }}
+          local-hostname: {{ vm_prefix }}-{{ platform.name }}
+        dest: "{{ vm_dir }}/{{ vm_prefix }}-{{ platform.name }}-meta-data"
+        mode: "0644"
+
+    - name: Write cloud-init user-data
+      ansible.builtin.copy:
+        content: |
+          #cloud-config
+          hostname: {{ vm_prefix }}-{{ platform.name }}
+          packages:
+            - openssh-server
+          users:
+            - name: ubuntu
+              sudo: ALL=(ALL) NOPASSWD:ALL
+              shell: /bin/bash
+              ssh_authorized_keys:
+                - {{ ssh_pub_key }}
+        dest: "{{ vm_dir }}/{{ vm_prefix }}-{{ platform.name }}-user-data"
+        mode: "0644"
+
+    - name: Write cloud-init network-config
+      ansible.builtin.copy:
+        content: |
+          version: 2
+          ethernets:
+            enp1s0:
+              dhcp4: true
+        dest: "{{ vm_dir }}/{{ vm_prefix }}-{{ platform.name }}-network-config"
+        mode: "0644"
+
+    - name: Create cloud-init ISO
+      ansible.builtin.command:
+        cmd: >-
+          genisoimage -output {{ vm_dir }}/{{ vm_prefix }}-{{ platform.name }}-cidata.iso
+          -volid cidata -joliet -rock -graft-points
+          user-data={{ vm_dir }}/{{ vm_prefix }}-{{ platform.name }}-user-data
+          meta-data={{ vm_dir }}/{{ vm_prefix }}-{{ platform.name }}-meta-data
+          network-config={{ vm_dir }}/{{ vm_prefix }}-{{ platform.name }}-network-config
+
+    - name: Create and start VM
+      ansible.builtin.command:
+        cmd: >-
+          virt-install
+          --name {{ vm_prefix }}-{{ platform.name }}
+          --vcpus {{ platform.vcpus | default(1) }}
+          --memory {{ platform.ram_mb | default(1024) }}
+          --disk path={{ vm_dir }}/{{ vm_prefix }}-{{ platform.name }}.qcow2,format=qcow2,bus=virtio,cache=none,io=native
+          --disk path={{ vm_dir }}/{{ vm_prefix }}-{{ platform.name }}-cidata.iso,device=cdrom
+          --os-variant ubuntu22.04
+          --network network=default
+          --graphics none
+          --noautoconsole
+          --import

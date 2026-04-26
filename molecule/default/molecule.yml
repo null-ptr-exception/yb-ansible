@@ -1,43 +1,44 @@
 ---
 driver:
   name: default
-  options:
-    managed: false
 
 platforms:
   - name: master-1
     groups:
       - masters
+    vcpus: 1
+    ram_mb: 1024
+    disk_gb: 10
   - name: master-2
     groups:
       - masters
+    vcpus: 1
+    ram_mb: 1024
+    disk_gb: 10
   - name: master-3
     groups:
       - masters
+    vcpus: 1
+    ram_mb: 1024
+    disk_gb: 10
   - name: tserver-1
     groups:
       - tservers
+    vcpus: 2
+    ram_mb: 2048
+    disk_gb: 20
 
 provisioner:
   name: ansible
   inventory:
-    host_vars:
-      master-1:
-        ansible_host: ${YB_MASTER_1_IP}
-      master-2:
-        ansible_host: ${YB_MASTER_2_IP}
-      master-3:
-        ansible_host: ${YB_MASTER_3_IP}
-      tserver-1:
-        ansible_host: ${YB_TSERVER_1_IP}
     group_vars:
       all:
         ansible_user: ubuntu
   config_options:
     defaults:
       roles_path: ${MOLECULE_PROJECT_DIRECTORY}/roles
-  env:
-    ANSIBLE_HOST_KEY_CHECKING: "false"
+    ssh_connection:
+      ssh_args: -o UserKnownHostsFile=${MOLECULE_PROJECT_DIRECTORY}/.vms/known_hosts
 
 verifier:
   name: ansible

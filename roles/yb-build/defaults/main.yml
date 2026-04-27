@@ -5,6 +5,7 @@ yb_shipper_tag: "2025.2.2.2"
 yb_shipper_image: "{{ yb_shipper_registry }}/{{ yb_shipper_repository }}:{{ yb_shipper_tag }}"
 yb_package_dir: /opt/packages/yugabytedb/{{ yb_shipper_tag }}
 yb_package_cache_dir: "{{ playbook_dir }}/.cache/packages/yugabytedb/{{ yb_shipper_tag }}"
+crane_insecure: false
 yb_install_dir: /opt/yugabyte
 yb_user: yugabyte
 yb_group: yugabyte

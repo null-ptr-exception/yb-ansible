@@ -30,7 +30,7 @@ Common prerequisites (all nodes)
 ├─ node-exporter: ship binary to nodes, symlink, start service
 └─ yb-build: ship tarball to nodes, extract, run post_install.sh
     │
-    ├─ Controller: pull OCI image → extract to .cache/packages/
+    ├─ Controller: crane export from OCI image → .cache/packages/
     ├─ Ship to /opt/packages/<product>/<version>/ on each node
     ├─ Skip if correct version already installed
     └─ Fail if version change detected on running services

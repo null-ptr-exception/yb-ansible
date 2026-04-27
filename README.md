@@ -8,7 +8,7 @@ Ansible playbooks for deploying YugabyteDB on Ubuntu Linux VMs.
 
 - Python 3.12+
 - Ansible
-- podman — used to pull OCI shipper images and extract packages locally before pushing to nodes
+- [crane](https://github.com/google/go-containerregistry/tree/main/cmd/crane) — used to extract packages from OCI images before pushing to nodes
 
 **Target nodes:**
 
@@ -20,8 +20,9 @@ Ansible playbooks for deploying YugabyteDB on Ubuntu Linux VMs.
 1. Install prerequisites and set up the Python environment:
 
 ```bash
-# podman is required on the controller to pull and extract OCI images
-sudo apt install -y podman
+# crane is required on the controller to extract files from OCI images
+CRANE_VERSION=0.20.3
+curl -sL "https://github.com/google/go-containerregistry/releases/download/v${CRANE_VERSION}/go-containerregistry_Linux_x86_64.tar.gz" | sudo tar -xzf - -C /usr/local/bin crane
 
 python3 -m venv .venv
 source .venv/bin/activate

@@ -10,7 +10,7 @@ Ansible playbooks for deploying and managing YugabyteDB on Linux VMs.
 ┌─────────────────────────────────────────────────────────────┐
 │                   Ansible Controller                        │
 │                                                             │
-│  podman pull  ──►  .cache/packages/  ──►  push to nodes    │
+│  crane export ──►  .cache/packages/  ──►  push to nodes    │
 │  (OCI images)      (local cache)          (copy/unarchive)  │
 └──────────────────────┬──────────────────────────────────────┘
                        │ SSH
@@ -33,12 +33,12 @@ In production, masters and tservers run on separate VMs. Single-node
 ## Package Distribution (Push Mode)
 
 The controller pulls OCI images, extracts binaries/tarballs locally, and
-pushes them to nodes. Target nodes do not need podman or registry access.
+pushes them to nodes. Target nodes do not need crane or registry access.
 
 ```
 OCI Registry
     │
-    ▼ podman pull (controller only, once)
+    ▼ crane export (controller only, once)
 .cache/packages/<product>/<version>/
     │
     ▼ ansible copy/unarchive (to each node)
@@ -53,7 +53,7 @@ This approach:
 - Works in air-gapped environments (controller pulls from a private registry)
 - Only the controller needs registry credentials — nodes need nothing
 - Caches packages on both the controller and each node for reinstalls
-- Podman is only required on the controller, not target nodes
+- Only crane (single static binary) is needed on the controller, no container runtime required
 
 ### OCI Shipper Image
 

@@ -35,6 +35,7 @@
         src: "{{ _cached_img.stdout | trim }}"
         dest: "{{ base_img }}"
         state: link
+        force: true
       when: _get_cloud_image.rc == 0
 
     - name: Check base image exists

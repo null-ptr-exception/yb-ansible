@@ -75,10 +75,11 @@
         content: |
           #cloud-config
           hostname: {{ vm_prefix }}-{{ platform.name }}
+          manage_etc_hosts: true
           packages:
             - openssh-server
           users:
-            - name: ubuntu
+            - name: almalinux
               sudo: ALL=(ALL) NOPASSWD:ALL
               shell: /bin/bash
               ssh_authorized_keys:
@@ -114,7 +115,7 @@
           --memory {{ platform.ram_mb | default(1024) }}
           --disk path={{ vm_dir }}/{{ vm_prefix }}-{{ platform.name }}.qcow2,format=qcow2,bus=virtio,cache=none,io=native
           --disk path={{ vm_dir }}/{{ vm_prefix }}-{{ platform.name }}-cidata.iso,device=cdrom
-          --os-variant ubuntu22.04
+          --os-variant almalinux9
           --network network=default
           --graphics none
           --noautoconsole

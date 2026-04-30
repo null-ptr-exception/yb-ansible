@@ -1,6 +1,6 @@
 # yb-ansible
 
-Ansible playbooks for deploying YugabyteDB on Ubuntu Linux VMs.
+Ansible playbooks for deploying YugabyteDB on RHEL-compatible Linux VMs (AlmaLinux 9).
 
 ## Requirements
 
@@ -14,7 +14,7 @@ Or use the pre-built [controller image](#controller-image) which includes all de
 
 **Target nodes:**
 
-- Ubuntu 22.04 LTS
+- AlmaLinux 9 / RHEL 9 / Rocky Linux 9
 - SSH access with sudo privileges
 
 ## Quick Start
@@ -70,14 +70,14 @@ Define two host groups — `masters` and `tservers`:
 
 ```ini
 [masters]
-10.0.0.1 ansible_user=ubuntu
-10.0.0.2 ansible_user=ubuntu
-10.0.0.3 ansible_user=ubuntu
+10.0.0.1 ansible_user=almalinux
+10.0.0.2 ansible_user=almalinux
+10.0.0.3 ansible_user=almalinux
 
 [tservers]
-10.0.0.4 ansible_user=ubuntu
-10.0.0.5 ansible_user=ubuntu
-10.0.0.6 ansible_user=ubuntu
+10.0.0.4 ansible_user=almalinux
+10.0.0.5 ansible_user=almalinux
+10.0.0.6 ansible_user=almalinux
 ```
 
 In production, masters and tservers should run on separate VMs.
@@ -173,11 +173,11 @@ The image is also published to GHCR on every push to `main` that changes
 
 ### Prerequisites
 
-Ubuntu dev machine with libvirt and Python tooling:
+Dev machine with libvirt and Python tooling:
 
 ```bash
-# libvirt and VM tools
-sudo apt install -y qemu-kvm libvirt-daemon-system virtinst genisoimage
+# libvirt and VM tools (Fedora/RHEL)
+sudo dnf install -y qemu-kvm libvirt virt-install genisoimage
 
 # ensure your user can manage VMs
 sudo usermod -aG libvirt $USER
@@ -235,4 +235,4 @@ molecule destroy && molecule create    # reset to clean OS
 
 ## Supported Platforms
 
-- Ubuntu 22.04 LTS
+- AlmaLinux 9 / RHEL 9 / Rocky Linux 9

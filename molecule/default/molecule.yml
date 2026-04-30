@@ -33,7 +33,7 @@ provisioner:
   inventory:
     group_vars:
       all:
-        ansible_user: ubuntu
+        ansible_user: almalinux
         yb_shipper_registry: ${MOLECULE_YB_SHIPPER_REGISTRY:-ghcr.io}
         node_exporter_registry: ${MOLECULE_NODE_EXPORTER_REGISTRY:-docker.io}
   env:

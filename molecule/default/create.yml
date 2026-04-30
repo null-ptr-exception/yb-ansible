@@ -6,8 +6,8 @@
   vars:
     vm_prefix: yb-ansible
     vm_dir: "{{ lookup('env', 'MOLECULE_PROJECT_DIRECTORY') }}/.vms"
-    base_img: "{{ vm_dir }}/ubuntu-22.04-cloudimg.img"
-    base_img_url: https://cloud-images.ubuntu.com/releases/22.04/release/ubuntu-22.04-server-cloudimg-amd64.img
+    base_img: "{{ vm_dir }}/AlmaLinux-9-GenericCloud-latest.x86_64.qcow2"
+    base_img_url: https://repo.almalinux.org/almalinux/9/cloud/x86_64/images/AlmaLinux-9-GenericCloud-latest.x86_64.qcow2
     ssh_pub_key: "{{ lookup('env', 'MOLECULE_SSH_PUB_KEY') | default('ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAINtJBZHaT6eSByrSE/min8SywDzig9Kou1Q5TwCPpsCD rophy', true) }}"
     ssh_identity_file: "{{ lookup('env', 'MOLECULE_SSH_IDENTITY_FILE') | default(lookup('env', 'HOME') ~ '/.ssh/id_ed25519', true) }}"
   tasks:
@@ -17,17 +17,38 @@
         state: directory
         mode: "0755"
 
+    - name: Check if get-cloud-image is available
+      ansible.builtin.command:
+        cmd: which get-cloud-image
+      register: _get_cloud_image
+      changed_when: false
+      failed_when: false
+
+    - name: Fetch base image via shared cache
+      ansible.builtin.command:
+        cmd: "get-cloud-image {{ base_img_url }}"
+      register: _cached_img
+      when: _get_cloud_image.rc == 0
+
+    - name: Symlink cached image into VM directory
+      ansible.builtin.file:
+        src: "{{ _cached_img.stdout | trim }}"
+        dest: "{{ base_img }}"
+        state: link
+      when: _get_cloud_image.rc == 0
+
     - name: Check base image exists
       ansible.builtin.stat:
         path: "{{ base_img }}"
       register: _base_img
+      when: _get_cloud_image.rc != 0
 
     - name: Download base image if missing
       ansible.builtin.get_url:
         url: "{{ base_img_url }}"
         dest: "{{ base_img }}"
         mode: "0644"
-      when: not _base_img.stat.exists
+      when: _get_cloud_image.rc != 0 and not _base_img.stat.exists
 
     - name: Create VMs
       ansible.builtin.include_tasks: tasks/create_vm.yml
@@ -68,7 +89,7 @@
           {{ instance_conf | default([]) + [{
             'instance': item.item.name,
             'address': item.stdout | regex_search('(\d+\.){3}\d+'),
-            'user': 'ubuntu',
+            'user': 'almalinux',
             'port': '22',
             'identity_file': ssh_identity_file
           }] }}
@@ -97,7 +118,7 @@
           ssh -o StrictHostKeyChecking=no
           -o UserKnownHostsFile=/dev/null
           -i {{ ssh_identity_file }}
-          ubuntu@{{ item.address }}
+          almalinux@{{ item.address }}
           cloud-init status --wait
       loop: "{{ instance_conf | selectattr('instance', 'in', _vms_needing_snapshot | default([])) | list }}"
       loop_control:
@@ -191,7 +212,7 @@
       ansible.builtin.copy:
         content: |
           [all:vars]
-          ansible_user=ubuntu
+          ansible_user=almalinux
           ansible_ssh_common_args=-o UserKnownHostsFile={{ vm_dir }}/known_hosts
 
           {% for group in _platform_by_name.values() | flatten | unique | sort %}

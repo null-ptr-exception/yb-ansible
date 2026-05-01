@@ -39,6 +39,14 @@ jobs:
           echo "pub_key=$(cat ~/.ssh/id_ed25519.pub)" >> "$GITHUB_OUTPUT"
           echo "identity_file=$HOME/.ssh/id_ed25519" >> "$GITHUB_OUTPUT"
 
+      - name: Clean up stale VMs
+        run: |
+          for vm in $(virsh list --all --name 2>/dev/null | grep '^yb-ansible-'); do
+            virsh destroy "$vm" 2>/dev/null || true
+            virsh undefine "$vm" --snapshots-metadata --remove-all-storage 2>/dev/null \
+              || virsh undefine "$vm" --snapshots-metadata 2>/dev/null || true
+          done
+
       - name: Run molecule test
         run: molecule test
         env:

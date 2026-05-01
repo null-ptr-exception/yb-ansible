@@ -6,14 +6,14 @@ on:
     paths:
       - "controller/**"
       - "roles/**"
-      - "*.yml"
-      - "*.cfg"
+      - "**/*.yml"
+      - "**/*.cfg"
   pull_request:
     paths:
       - "controller/**"
       - "roles/**"
-      - "*.yml"
-      - "*.cfg"
+      - "**/*.yml"
+      - "**/*.cfg"
   workflow_dispatch:
 
 env:

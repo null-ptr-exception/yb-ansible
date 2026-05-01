@@ -29,6 +29,8 @@
         cmd: "get-cloud-image {{ base_img_url }}"
       register: _cached_img
       when: _get_cloud_image.rc == 0
+      failed_when: false
+      changed_when: _cached_img.rc == 0
 
     - name: Symlink cached image into VM directory
       ansible.builtin.file:
@@ -36,20 +38,20 @@
         dest: "{{ base_img }}"
         state: link
         force: true
-      when: _get_cloud_image.rc == 0
+      when: _cached_img.rc is defined and _cached_img.rc == 0
 
     - name: Check base image exists
       ansible.builtin.stat:
         path: "{{ base_img }}"
       register: _base_img
-      when: _get_cloud_image.rc != 0
+      when: _cached_img is skipped or _cached_img.rc != 0
 
     - name: Download base image if missing
       ansible.builtin.get_url:
         url: "{{ base_img_url }}"
         dest: "{{ base_img }}"
         mode: "0644"
-      when: _get_cloud_image.rc != 0 and not _base_img.stat.exists
+      when: (_cached_img is skipped or _cached_img.rc != 0) and not _base_img.stat.exists
 
     - name: Create VMs
       ansible.builtin.include_tasks: tasks/create_vm.yml

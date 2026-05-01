@@ -1,0 +1,11 @@
+.git/
+.github/
+.vms/
+.venv/
+.cache/
+.env
+.claude/
+inventory.ini
+molecule/
+shipper/
+controller/

@@ -32,3 +32,4 @@ RUN curl -sL "https://github.com/mikefarah/yq/releases/download/v${YQ_VERSION}/y
 RUN pip install --no-cache-dir ansible
 
 WORKDIR /ansible
+COPY . .

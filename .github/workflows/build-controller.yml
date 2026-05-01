@@ -5,9 +5,15 @@ on:
     branches: [main]
     paths:
       - "controller/**"
+      - "roles/**"
+      - "*.yml"
+      - "*.cfg"
   pull_request:
     paths:
       - "controller/**"
+      - "roles/**"
+      - "*.yml"
+      - "*.cfg"
   workflow_dispatch:
 
 env:
@@ -44,7 +50,8 @@ jobs:
 
       - uses: docker/build-push-action@v6
         with:
-          context: controller
+          context: .
+          file: controller/Dockerfile
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}

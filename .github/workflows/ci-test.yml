@@ -22,9 +22,11 @@ jobs:
 
       - name: Install crane
         run: |
-          CRANE_VERSION=0.20.3
-          curl -sL "https://github.com/google/go-containerregistry/releases/download/v${CRANE_VERSION}/go-containerregistry_Linux_x86_64.tar.gz" \
-            | sudo tar -xzf - -C /usr/local/bin crane
+          if ! command -v crane &>/dev/null; then
+            CRANE_VERSION=0.20.3
+            curl -sL "https://github.com/google/go-containerregistry/releases/download/v${CRANE_VERSION}/go-containerregistry_Linux_x86_64.tar.gz" \
+              | sudo tar -xzf - -C /usr/local/bin crane
+          fi
 
       - name: Install dependencies
         run: |

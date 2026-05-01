@@ -54,3 +54,4 @@ jobs:
           MOLECULE_SSH_IDENTITY_FILE: ${{ steps.ssh-key.outputs.identity_file }}
           MOLECULE_YB_SHIPPER_REGISTRY: ${{ secrets.MOLECULE_YB_SHIPPER_REGISTRY }}
           MOLECULE_NODE_EXPORTER_REGISTRY: ${{ secrets.MOLECULE_NODE_EXPORTER_REGISTRY }}
+          MOLECULE_CRANE_INSECURE: "true"

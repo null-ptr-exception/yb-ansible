@@ -25,10 +25,16 @@ jobs:
           python -m pip install --upgrade pip
           pip install ansible molecule
 
+      - name: Read runner SSH public key
+        id: ssh-key
+        run: |
+          echo "pub_key=$(cat ~/.ssh/id_ed25519.pub)" >> "$GITHUB_OUTPUT"
+          echo "identity_file=$HOME/.ssh/id_ed25519" >> "$GITHUB_OUTPUT"
+
       - name: Run molecule test
         run: molecule test
         env:
-          MOLECULE_SSH_PUB_KEY: ${{ secrets.MOLECULE_SSH_PUB_KEY }}
-          MOLECULE_SSH_IDENTITY_FILE: ${{ secrets.MOLECULE_SSH_IDENTITY_FILE }}
+          MOLECULE_SSH_PUB_KEY: ${{ steps.ssh-key.outputs.pub_key }}
+          MOLECULE_SSH_IDENTITY_FILE: ${{ steps.ssh-key.outputs.identity_file }}
           MOLECULE_YB_SHIPPER_REGISTRY: ${{ secrets.MOLECULE_YB_SHIPPER_REGISTRY }}
           MOLECULE_NODE_EXPORTER_REGISTRY: ${{ secrets.MOLECULE_NODE_EXPORTER_REGISTRY }}

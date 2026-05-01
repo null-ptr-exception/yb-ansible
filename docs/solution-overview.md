@@ -55,6 +55,11 @@ This approach:
 - Caches packages on both the controller and each node for reinstalls
 - Only crane (single static binary) is needed on the controller, no container runtime required
 
+A pre-built **controller image** (`controller/Dockerfile`) packages Ansible,
+crane, and common network tools into a single Docker image. This is useful for
+running playbooks from a K8s pod or CI environment without installing
+dependencies on the host.
+
 ### OCI Shipper Image
 
 The YugabyteDB tarball is distributed via a minimal `scratch`-based OCI image

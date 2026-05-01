@@ -10,12 +10,34 @@ Ansible playbooks for deploying YugabyteDB on Ubuntu Linux VMs.
 - Ansible
 - [crane](https://github.com/google/go-containerregistry/tree/main/cmd/crane) — used to extract packages from OCI images before pushing to nodes
 
+Or use the pre-built [controller image](#controller-image) which includes all dependencies.
+
 **Target nodes:**
 
 - Ubuntu 22.04 LTS
 - SSH access with sudo privileges
 
 ## Quick Start
+
+### Option A: Using the controller image
+
+```bash
+docker run --rm -it \
+  -v "$PWD:/ansible" \
+  -v "$HOME/.ssh:/root/.ssh:ro" \
+  ghcr.io/<owner>/yb-ansible-controller:latest \
+  bash
+```
+
+Then inside the container:
+
+```bash
+cp inventory.example.ini inventory.ini
+# Edit inventory.ini with your host IPs
+ansible-playbook -i inventory.ini deploy.yml
+```
+
+### Option B: Local install
 
 1. Install prerequisites and set up the Python environment:
 
@@ -134,6 +156,19 @@ yb_tserver_flags:
   ysql_num_shards_per_tserver: 2
 ```
 
+## Controller Image
+
+A pre-built Docker image with all controller dependencies (Ansible, crane, yq,
+SSH, and common network tools). Useful for running playbooks from a K8s pod or
+any environment where you don't want to install tools locally.
+
+```bash
+docker build -t yb-ansible-controller controller/
+```
+
+The image is also published to GHCR on every push to `main` that changes
+`controller/`.
+
 ## Development
 
 ### Prerequisites
@@ -176,6 +211,15 @@ To fully destroy VMs and snapshots:
 
 ```bash
 MOLECULE_FULL_DESTROY=true molecule destroy
+```
+
+### Running all tests
+
+```bash
+make test              # run all tests (controller image + molecule)
+make test-controller   # build and verify the controller image only
+make test-molecule     # run molecule test only (requires libvirt)
+make help              # list all targets
 ```
 
 ### Manual testing with molecule VMs

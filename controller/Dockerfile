@@ -22,8 +22,11 @@ RUN apt-get update -qq \
        wget \
     && rm -rf /var/lib/apt/lists/*
 
-RUN curl -sL "https://github.com/google/go-containerregistry/releases/download/v${CRANE_VERSION}/go-containerregistry_Linux_x86_64.tar.gz" \
-    | tar -xzf - -C /usr/local/bin crane
+RUN curl -fsSL -o /tmp/crane.tar.gz \
+      "https://github.com/google/go-containerregistry/releases/download/v${CRANE_VERSION}/go-containerregistry_Linux_x86_64.tar.gz" \
+    && echo "36c67a932f489b3f2724b64af90b599a8ef2aa7b004872597373c0ad694dc059  /tmp/crane.tar.gz" | sha256sum -c - \
+    && tar -xzf /tmp/crane.tar.gz -C /usr/local/bin crane \
+    && rm /tmp/crane.tar.gz
 
 ARG YQ_VERSION=4.45.1
 RUN curl -sL "https://github.com/mikefarah/yq/releases/download/v${YQ_VERSION}/yq_linux_amd64" \
@@ -32,3 +35,4 @@ RUN curl -sL "https://github.com/mikefarah/yq/releases/download/v${YQ_VERSION}/y
 RUN pip install --no-cache-dir ansible
 
 WORKDIR /ansible
+COPY . .

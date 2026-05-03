@@ -24,8 +24,11 @@ jobs:
         run: |
           if ! command -v crane &>/dev/null; then
             CRANE_VERSION=0.20.3
-            curl -sL "https://github.com/google/go-containerregistry/releases/download/v${CRANE_VERSION}/go-containerregistry_Linux_x86_64.tar.gz" \
-              | sudo tar -xzf - -C /usr/local/bin crane
+            CRANE_SHA256=36c67a932f489b3f2724b64af90b599a8ef2aa7b004872597373c0ad694dc059
+            curl -fsSL -o /tmp/crane.tar.gz \
+              "https://github.com/google/go-containerregistry/releases/download/v${CRANE_VERSION}/go-containerregistry_Linux_x86_64.tar.gz"
+            echo "${CRANE_SHA256}  /tmp/crane.tar.gz" | sha256sum -c -
+            sudo tar -xzf /tmp/crane.tar.gz -C /usr/local/bin crane
           fi
 
       - name: Install dependencies

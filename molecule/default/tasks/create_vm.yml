@@ -76,10 +76,12 @@
           #cloud-config
           hostname: {{ vm_prefix }}-{{ platform.name }}
           manage_etc_hosts: true
-          packages:
-            - openssh-server
+          runcmd:
+            - sed -i 's/^mirrorlist=/#mirrorlist=/g' /etc/yum.repos.d/CentOS-*.repo
+            - sed -i 's|^#baseurl=http://mirror.centos.org|baseurl=http://vault.centos.org|g' /etc/yum.repos.d/CentOS-*.repo
+            - yum install -y python3 openssh-server
           users:
-            - name: almalinux
+            - name: centos
               sudo: ALL=(ALL) NOPASSWD:ALL
               shell: /bin/bash
               ssh_authorized_keys:
@@ -92,7 +94,7 @@
         content: |
           version: 2
           ethernets:
-            enp1s0:
+            eth0:
               dhcp4: true
         dest: "{{ vm_dir }}/{{ vm_prefix }}-{{ platform.name }}-network-config"
         mode: "0644"
@@ -115,7 +117,7 @@
           --memory {{ platform.ram_mb | default(1024) }}
           --disk path={{ vm_dir }}/{{ vm_prefix }}-{{ platform.name }}.qcow2,format=qcow2,bus=virtio,cache=none,io=native
           --disk path={{ vm_dir }}/{{ vm_prefix }}-{{ platform.name }}-cidata.iso,device=cdrom
-          --os-variant almalinux9
+          --os-variant centos7.0
           --network network=default
           --graphics none
           --noautoconsole

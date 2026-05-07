@@ -1,6 +1,6 @@
 # yb-ansible
 
-Ansible playbooks for deploying YugabyteDB on RHEL-compatible Linux VMs (AlmaLinux 9).
+Ansible playbooks for deploying YugabyteDB on RHEL-compatible Linux VMs (CentOS 7 / RHEL 7).
 
 ## Requirements
 
@@ -14,7 +14,7 @@ Or use the pre-built [controller image](#controller-image) which includes all de
 
 **Target nodes:**
 
-- AlmaLinux 9 / RHEL 9 / Rocky Linux 9
+- CentOS 7 / RHEL 7
 - SSH access with sudo privileges
 
 ## Quick Start
@@ -70,14 +70,14 @@ Define two host groups — `masters` and `tservers`:
 
 ```ini
 [masters]
-10.0.0.1 ansible_user=almalinux
-10.0.0.2 ansible_user=almalinux
-10.0.0.3 ansible_user=almalinux
+10.0.0.1 ansible_user=centos
+10.0.0.2 ansible_user=centos
+10.0.0.3 ansible_user=centos
 
 [tservers]
-10.0.0.4 ansible_user=almalinux
-10.0.0.5 ansible_user=almalinux
-10.0.0.6 ansible_user=almalinux
+10.0.0.4 ansible_user=centos
+10.0.0.5 ansible_user=centos
+10.0.0.6 ansible_user=centos
 ```
 
 In production, masters and tservers should run on separate VMs.
@@ -139,7 +139,7 @@ Key variables:
 
 | Variable | Default | Description |
 |---|---|---|
-| `yb_shipper_tag` | `2025.2.2.2` | YugabyteDB version |
+| `yb_shipper_tag` | `2.20.11.1` | YugabyteDB version |
 | `yb_shipper_image` | `ghcr.io/.../yb-shipper:{{ yb_shipper_tag }}` | OCI image containing the YB tarball |
 | `yb_install_dir` | `/opt/yugabyte` | YugabyteDB installation directory |
 | `yb_data_dir` | `/data/yugabyte` | YugabyteDB data directory |
@@ -235,4 +235,4 @@ molecule destroy && molecule create    # reset to clean OS
 
 ## Supported Platforms
 
-- AlmaLinux 9 / RHEL 9 / Rocky Linux 9
+- CentOS 7 / RHEL 7

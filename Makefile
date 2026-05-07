@@ -10,3 +10,6 @@ test-controller: ## Build and verify the controller Docker image
 
 test-molecule: ## Run molecule test (requires libvirt)
 	@molecule test
+
+test-centos7: ## Run molecule test with CentOS 7 (requires libvirt)
+	@molecule test -s centos7

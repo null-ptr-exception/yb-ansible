@@ -1,4 +1,11 @@
 ---
+- name: Bootstrap Python on all nodes
+  hosts: all
+  gather_facts: false
+  become: true
+  roles:
+    - bootstrap-python
+
 - name: Common prerequisites on all nodes
   hosts: all
   become: true

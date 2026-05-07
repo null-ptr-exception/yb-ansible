@@ -1,0 +1,3 @@
+---
+# Default to system python initially, the bootstrap role will override it
+ansible_python_interpreter: /usr/bin/python3

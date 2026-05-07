@@ -1,4 +1,4 @@
-.PHONY: help test test-controller test-molecule
+.PHONY: help test test-controller test-molecule test-centos7
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*## "}; {printf "  %-20s %s\n", $$1, $$2}'

@@ -1,0 +1,20 @@
+---
+- name: Check if portable Python is already installed
+  ansible.builtin.raw: "ls {{ yb_portable_python_dest }}/bin/python3"
+  register: _python_check
+  failed_when: false
+  changed_when: false
+
+- name: Install portable Python if missing
+  ansible.builtin.include_tasks: install.yml
+  when: _python_check.rc != 0
+
+- name: Verify portable Python version
+  ansible.builtin.raw: "{{ yb_portable_python_dest }}/bin/python3 --version"
+  register: _python_version
+  failed_when: _python_version.rc != 0
+  changed_when: false
+
+- name: Set ansible_python_interpreter for the rest of the play
+  ansible.builtin.set_fact:
+    ansible_python_interpreter: "{{ yb_portable_python_dest }}/bin/python3"

@@ -1,0 +1,26 @@
+---
+- name: Ensure local cache directory exists
+  ansible.builtin.file:
+    path: "roles/bootstrap-python/files"
+    state: directory
+  delegate_to: localhost
+  become: false
+
+- name: Download portable Python to controller
+  ansible.builtin.get_url:
+    url: "{{ yb_portable_python_url }}"
+    dest: "roles/bootstrap-python/files/portable-python.tar.gz"
+  delegate_to: localhost
+  become: false
+
+- name: Ensure destination directory exists on remote
+  ansible.builtin.file:
+    path: "/opt/ansible"
+    state: directory
+    mode: "0755"
+
+- name: Extract portable Python on remote
+  ansible.builtin.unarchive:
+    src: "roles/bootstrap-python/files/portable-python.tar.gz"
+    dest: "/opt/ansible"
+    remote_src: false

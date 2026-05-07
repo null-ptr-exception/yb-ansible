@@ -1,0 +1,4 @@
+# molecule/centos7/converge.yml
+---
+- name: Deploy YugabyteDB
+  ansible.builtin.import_playbook: ../../deploy.yml

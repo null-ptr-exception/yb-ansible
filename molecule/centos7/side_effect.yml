@@ -1,0 +1,48 @@
+---
+# Test: simulate a node that needs reinstall after controller cache is cleared.
+# This catches a bug where run_once evaluates the "when" condition from the
+# first host (which is already installed), skipping the controller pull block
+# even though another node needs it.
+
+- name: Simulate fresh node (tserver-1)
+  hosts: tserver-1
+  become: true
+  tasks:
+    - name: Stop yb-tserver service
+      ansible.builtin.systemd:
+        name: yb-tserver
+        state: stopped
+
+    - name: Stop node-exporter service
+      ansible.builtin.systemd:
+        name: node-exporter
+        state: stopped
+
+    - name: Remove YugabyteDB installation
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - /opt/yugabyte
+        - /opt/packages/yugabytedb
+
+    - name: Remove node-exporter installation
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - /opt/node-exporter
+        - /opt/packages/node-exporter
+
+- name: Clear controller package cache
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tasks:
+    - name: Remove controller cache
+      ansible.builtin.file:
+        path: "{{ playbook_dir }}/../../.cache/packages"
+        state: absent
+
+- name: Re-deploy (should recover tserver-1)
+  ansible.builtin.import_playbook: ../../deploy.yml

@@ -7,25 +7,25 @@ platforms:
     groups:
       - masters
     vcpus: 1
-    ram_mb: 3072
+    ram_mb: 2048
     disk_gb: 10
   - name: master-2
     groups:
       - masters
     vcpus: 1
-    ram_mb: 3072
+    ram_mb: 2048
     disk_gb: 10
   - name: master-3
     groups:
       - masters
     vcpus: 1
-    ram_mb: 3072
+    ram_mb: 2048
     disk_gb: 10
   - name: tserver-1
     groups:
       - tservers
     vcpus: 2
-    ram_mb: 3072
+    ram_mb: 2048
     disk_gb: 20
 
 provisioner:

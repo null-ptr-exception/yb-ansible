@@ -18,7 +18,7 @@
 
 - name: Ensure destination directory exists on remote
   ansible.builtin.file:
-    path: "/opt/ansible"
+    path: "{{ yb_portable_python_dest }}"
     state: directory
     owner: root
     group: root
@@ -27,15 +27,15 @@
 - name: Extract portable Python on remote
   ansible.builtin.unarchive:
     src: "{{ yb_portable_python_archive }}"
-    dest: "/opt/ansible"
+    dest: "{{ yb_portable_python_dest }}"
     owner: root
     group: root
     remote_src: false
 
 - name: Rename extracted directory to python3
   ansible.builtin.shell: |
-    if [ -d "/opt/ansible/python" ]; then
-      mv /opt/ansible/python /opt/ansible/python3
+    if [ -d "{{ yb_portable_python_dest }}/python" ]; then
+      mv "{{ yb_portable_python_dest }}/python" "{{ yb_portable_python_dest }}/python3"
     fi
   args:
-    creates: "/opt/ansible/python3"
+    creates: "{{ yb_portable_python_dest }}/python3"

@@ -7,6 +7,7 @@ RUN apt-get update -qq \
        ca-certificates \
        curl \
        dnsutils \
+       genisoimage \
        git \
        iproute2 \
        iputils-ping \

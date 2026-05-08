@@ -100,7 +100,7 @@
     - name: Create cloud-init ISO
       ansible.builtin.command:
         cmd: >-
-          genisoimage -output {{ vm_dir }}/{{ vm_prefix }}-{{ platform.name }}-cidata.iso
+          {{ iso_cmd }} -output {{ vm_dir }}/{{ vm_prefix }}-{{ platform.name }}-cidata.iso
           -volid cidata -joliet -rock -graft-points
           user-data={{ vm_dir }}/{{ vm_prefix }}-{{ platform.name }}-user-data
           meta-data={{ vm_dir }}/{{ vm_prefix }}-{{ platform.name }}-meta-data
@@ -113,7 +113,7 @@
           --name {{ vm_prefix }}-{{ platform.name }}
           --vcpus {{ platform.vcpus | default(1) }}
           --memory {{ platform.ram_mb | default(1024) }}
-          --disk path={{ vm_dir }}/{{ vm_prefix }}-{{ platform.name }}.qcow2,format=qcow2,bus=virtio,cache=none,io=native
+          --disk path={{ vm_dir }}/{{ vm_prefix }}-{{ platform.name }}.qcow2,format=qcow2,bus=virtio{{ virt_install_disk_extra }}
           --disk path={{ vm_dir }}/{{ vm_prefix }}-{{ platform.name }}-cidata.iso,device=cdrom
           --os-variant almalinux9
           --network network=default

@@ -2,7 +2,7 @@
 - name: Create molecule instances
   hosts: localhost
   connection: local
-  gather_facts: false
+  gather_facts: true
   vars:
     vm_prefix: yb-ansible
     vm_dir: "{{ lookup('env', 'MOLECULE_PROJECT_DIRECTORY') }}/.vms"
@@ -23,6 +23,24 @@
       register: _get_cloud_image
       changed_when: false
       failed_when: false
+
+    - name: Detect ISO creation command
+      ansible.builtin.command: "which {{ item }}"
+      loop:
+        - genisoimage
+        - mkisofs
+      register: _iso_cmds
+      ignore_errors: true
+      changed_when: false
+      failed_when: false
+
+    - name: Set final iso_cmd
+      ansible.builtin.set_fact:
+        iso_cmd: "{{ (_iso_cmds.results | selectattr('rc', 'eq', 0) | map(attribute='item') | first) | default('genisoimage') }}"
+
+    - name: Detect OS-specific virt-install options
+      ansible.builtin.set_fact:
+        virt_install_disk_extra: "{{ ',cache=none,io=native' if ansible_os_family != 'Darwin' else '' }}"
 
     - name: Fetch base image via shared cache
       ansible.builtin.command:

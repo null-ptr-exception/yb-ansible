@@ -10,7 +10,7 @@ echo "=== Verifying tools ==="
 docker run --rm "$IMAGE" bash -c '
   set -e
   failed=0
-  for cmd in ansible crane yq jq git ssh rsync curl wget dig ping nc traceroute ip vim; do
+  for cmd in ansible crane yq jq git ssh rsync curl wget dig ping nc traceroute ip vim genisoimage; do
     if command -v "$cmd" > /dev/null 2>&1; then
       printf "  %-12s OK\n" "$cmd"
     else

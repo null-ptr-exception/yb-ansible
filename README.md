@@ -179,8 +179,10 @@ Dev machine with libvirt and Python tooling:
 # libvirt and VM tools (Fedora/RHEL)
 sudo dnf install -y qemu-kvm libvirt virt-install genisoimage
 
-# ensure your user can manage VMs
-sudo usermod -aG libvirt $USER
+# libvirt and VM tools (macOS)
+brew install libvirt virt-manager cdrtools
+# Note: On macOS, the playbooks automatically detect and use mkisofs if genisoimage is missing.
+```
 # (log out and back in for group change to take effect)
 
 # verify the default network is active

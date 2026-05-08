@@ -29,8 +29,11 @@ RUN curl -fsSL -o /tmp/crane.tar.gz \
     && rm /tmp/crane.tar.gz
 
 ARG YQ_VERSION=4.53.2
-RUN curl -sL "https://github.com/mikefarah/yq/releases/download/v${YQ_VERSION}/yq_linux_amd64" \
-    -o /usr/local/bin/yq && chmod +x /usr/local/bin/yq
+RUN curl -fsSL "https://github.com/mikefarah/yq/releases/download/v${YQ_VERSION}/yq_linux_amd64" \
+      -o /tmp/yq \
+    && echo "d56bf5c6819e8e696340c312bd70f849dc1678a7cda9c2ad63eebd906371d56b  /tmp/yq" | sha256sum -c - \
+    && install -m 0755 /tmp/yq /usr/local/bin/yq \
+    && rm /tmp/yq
 
 RUN pip install --no-cache-dir 'ansible-core>=2.16,<2.17'
 

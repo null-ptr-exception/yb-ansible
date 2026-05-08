@@ -6,8 +6,8 @@
   vars:
     vm_prefix: yb-ansible
     vm_dir: "{{ lookup('env', 'MOLECULE_PROJECT_DIRECTORY') }}/.vms"
-    base_img: "{{ vm_dir }}/AlmaLinux-9-GenericCloud-latest.x86_64.qcow2"
-    base_img_url: https://repo.almalinux.org/almalinux/9/cloud/x86_64/images/AlmaLinux-9-GenericCloud-latest.x86_64.qcow2
+    base_img: "{{ vm_dir }}/CentOS-7-x86_64-GenericCloud-2211.qcow2"
+    base_img_url: https://cloud.centos.org/centos/7/images/CentOS-7-x86_64-GenericCloud-2211.qcow2
     ssh_pub_key: "{{ lookup('env', 'MOLECULE_SSH_PUB_KEY') | default('ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAINtJBZHaT6eSByrSE/min8SywDzig9Kou1Q5TwCPpsCD rophy', true) }}"
     ssh_identity_file: "{{ lookup('env', 'MOLECULE_SSH_IDENTITY_FILE') | default(lookup('env', 'HOME') ~ '/.ssh/id_ed25519', true) }}"
   tasks:
@@ -92,7 +92,7 @@
           {{ instance_conf | default([]) + [{
             'instance': item.item.name,
             'address': item.stdout | regex_search('(\d+\.){3}\d+'),
-            'user': 'almalinux',
+            'user': 'centos',
             'port': '22',
             'identity_file': ssh_identity_file
           }] }}
@@ -121,8 +121,8 @@
           ssh -o StrictHostKeyChecking=no
           -o UserKnownHostsFile=/dev/null
           -i {{ ssh_identity_file }}
-          almalinux@{{ item.address }}
-          cloud-init status --wait
+          centos@{{ item.address }}
+          test -f /var/lib/cloud/instance/boot-finished
       loop: "{{ instance_conf | selectattr('instance', 'in', _vms_needing_snapshot | default([])) | list }}"
       loop_control:
         label: "{{ item.instance }}"
@@ -215,7 +215,7 @@
       ansible.builtin.copy:
         content: |
           [all:vars]
-          ansible_user=almalinux
+          ansible_user=centos
           ansible_ssh_common_args=-o UserKnownHostsFile={{ vm_dir }}/known_hosts
 
           {% for group in _platform_by_name.values() | flatten | unique | sort %}

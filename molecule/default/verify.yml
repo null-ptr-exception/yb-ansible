@@ -5,7 +5,7 @@
   gather_facts: false
   vars:
     yb_install_dir: /opt/yugabyte
-    yb_shipper_tag: "2025.2.2.2"
+    yb_shipper_tag: "2.20.11.1"
     yb_package_dir: /opt/packages/yugabytedb/{{ yb_shipper_tag }}
     node_exporter_tag: "v1.11.1-distroless"
     node_exporter_package_dir: /opt/packages/node-exporter/{{ node_exporter_tag }}

@@ -32,7 +32,7 @@ ARG YQ_VERSION=4.45.1
 RUN curl -sL "https://github.com/mikefarah/yq/releases/download/v${YQ_VERSION}/yq_linux_amd64" \
     -o /usr/local/bin/yq && chmod +x /usr/local/bin/yq
 
-RUN pip install --no-cache-dir ansible
+RUN pip install --no-cache-dir 'ansible-core>=2.16,<2.17'
 
 WORKDIR /ansible
 COPY . .

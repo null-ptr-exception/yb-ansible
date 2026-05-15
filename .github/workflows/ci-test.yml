@@ -8,7 +8,7 @@ on:
 
 jobs:
   test:
-    runs-on: [self-hosted, nuc-rophy]
+    runs-on: [self-hosted, kata-rophy]
     env:
       LIBVIRT_DEFAULT_URI: qemu:///system
 
@@ -24,12 +24,14 @@ jobs:
         run: |
           CRANE_VERSION=0.21.5
           CRANE_SHA256=9f823ae5ee25803161110f957b5fd4538f714d40cdf25dacb4914fefafd246bf
-          INSTALLED_VERSION=$(crane version 2>/dev/null || echo "none")
+          mkdir -p "$HOME/bin"
+          echo "$HOME/bin" >> "$GITHUB_PATH"
+          INSTALLED_VERSION=$("$HOME/bin/crane" version 2>/dev/null || echo "none")
           if [ "$INSTALLED_VERSION" != "$CRANE_VERSION" ]; then
             curl -fsSL -o /tmp/crane.tar.gz \
               "https://github.com/google/go-containerregistry/releases/download/v${CRANE_VERSION}/go-containerregistry_Linux_x86_64.tar.gz"
             echo "${CRANE_SHA256}  /tmp/crane.tar.gz" | sha256sum -c -
-            sudo tar -xzf /tmp/crane.tar.gz -C /usr/local/bin crane
+            tar -xzf /tmp/crane.tar.gz -C "$HOME/bin" crane
           fi
 
       - name: Set up virtualenv

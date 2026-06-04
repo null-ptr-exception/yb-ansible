@@ -13,10 +13,10 @@ jobs:
       LIBVIRT_DEFAULT_URI: qemu:///system
 
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: actions/checkout@v4
 
       - name: Set up Python
-        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        uses: actions/setup-python@v5
         with:
           python-version: "3.12"
 
@@ -65,3 +65,10 @@ jobs:
           MOLECULE_YB_SHIPPER_REGISTRY: ${{ secrets.MOLECULE_YB_SHIPPER_REGISTRY }}
           MOLECULE_NODE_EXPORTER_REGISTRY: ${{ secrets.MOLECULE_NODE_EXPORTER_REGISTRY }}
           MOLECULE_CRANE_INSECURE: "true"
+
+      - name: Upload Molecule logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: molecule-logs
+          path: logs/

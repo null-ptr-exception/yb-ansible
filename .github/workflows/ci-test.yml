@@ -13,10 +13,10 @@ jobs:
       LIBVIRT_DEFAULT_URI: qemu:///system
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@sha256:b4ffbb6a30107a18c2d0e63056b4fe8fc0ab552582f3987201e58e42b931d263
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@sha256:edbdcd6cda2b0afd07426b90a4260cef4191cf312f4efb1fe26c05b98d064ded
         with:
           python-version: "3.12"
 
@@ -68,7 +68,7 @@ jobs:
 
       - name: Upload Molecule logs on failure
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@sha256:65d4ab9573b98ee5b763d3f6c7ce618b66e11d663761eef13623653de2155274
         with:
           name: molecule-logs
           path: logs/

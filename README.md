@@ -116,6 +116,7 @@ In production, masters and tservers should run on separate VMs.
 
 | Playbook | Purpose |
 |---|---|
+| `playbooks/site.yml` | Basic deploy path without the stricter day-2 pre-flight checks |
 | `playbooks/deploy.yml` | Day 1 fresh install, day 2 add tservers |
 | `playbooks/upgrade.yml` | Version upgrades and config changes (rolling restart) |
 | `playbooks/restart.yml` | Rolling restart without config changes |
@@ -137,7 +138,7 @@ See [docs/playbooks.md](docs/playbooks.md) for detailed behavior and safety chec
 Sets up shared prerequisites on all nodes:
 
 - **yugabyte user/group** — system account for running YB processes
-- **s5cmd binary** — ships the high-performance S3/MinIO client (`s5cmd`) binary from the controller Docker image to all nodes for backup and restore tasks
+- **s5cmd binary** — uses `/usr/local/bin/s5cmd` on the controller when present, otherwise downloads and caches `s5cmd`, then ships it to nodes for backup and restore tasks
 
 ### node-exporter
 
@@ -364,7 +365,7 @@ MOLECULE_FULL_DESTROY=true molecule destroy -s default
 ### Running all tests
 
 ```bash
-make test              # run all tests (controller image + molecule scenario matrix)
+make test              # run all tests (controller image + ordered molecule scenarios)
 make test-controller   # build and verify the controller image only
 make test-molecule     # run default, xcluster, and backup-restore scenarios
 make help              # list all targets
@@ -377,7 +378,10 @@ MOLECULE_SCENARIOS="xcluster" make test-molecule
 MOLECULE_SCENARIOS="default backup-restore" make test-molecule
 ```
 
-GitHub CI runs the same Molecule scenarios as a matrix.
+GitHub CI runs the same ordered Molecule scenario runner on the self-hosted
+libvirt runner. The runner executes scenarios serially, stops at the first
+failure, runs Molecule cleanup for the failed scenario, and prints a timing
+summary for completed and failed scenarios.
 
 ### Manual testing with molecule VMs
 

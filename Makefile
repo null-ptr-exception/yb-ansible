@@ -11,7 +11,4 @@ test-controller: ## Build and verify the controller Docker image
 	@controller/test.sh
 
 test-molecule: ## Run molecule scenarios (requires libvirt)
-	@for scenario in $(MOLECULE_SCENARIOS); do \
-		echo "==> molecule test -s $$scenario"; \
-		molecule test -s $$scenario || exit 1; \
-	done
+	@MOLECULE_SCENARIOS="$(MOLECULE_SCENARIOS)" tests/run_molecule_scenarios.sh

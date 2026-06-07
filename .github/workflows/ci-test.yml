@@ -8,11 +8,6 @@ on:
 
 jobs:
   test:
-    strategy:
-      fail-fast: false
-      matrix:
-        scenario: [default, xcluster, backup-restore]
-
     runs-on: [self-hosted, kata-rophy]
     env:
       LIBVIRT_DEFAULT_URI: qemu:///system
@@ -52,18 +47,10 @@ jobs:
           echo "pub_key=$(cat ~/.ssh/id_ed25519.pub)" >> "$GITHUB_OUTPUT"
           echo "identity_file=$HOME/.ssh/id_ed25519" >> "$GITHUB_OUTPUT"
 
-      - name: Clean up stale VMs
-        run: |
-          for vm in $(virsh list --all --name 2>/dev/null | grep '^yb-ansible-'); do
-            virsh destroy "$vm" 2>/dev/null || true
-            virsh undefine "$vm" --snapshots-metadata --remove-all-storage 2>/dev/null \
-              || virsh undefine "$vm" --snapshots-metadata 2>/dev/null || true
-          done
-
-      - name: Run molecule scenario
+      - name: Run molecule scenarios
         run: |
           source .venv/bin/activate
-          molecule test -s "${{ matrix.scenario }}"
+          tests/run_molecule_scenarios.sh
         env:
           MOLECULE_SSH_PUB_KEY: ${{ steps.ssh-key.outputs.pub_key }}
           MOLECULE_SSH_IDENTITY_FILE: ${{ steps.ssh-key.outputs.identity_file }}
@@ -75,5 +62,5 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
-          name: molecule-logs-${{ matrix.scenario }}
+          name: molecule-logs
           path: logs/

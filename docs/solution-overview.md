@@ -55,6 +55,11 @@ This approach:
 - Caches packages on both the controller and each node for reinstalls
 - Only crane (single static binary) is needed on the controller, no container runtime required
 
+The `common` role also ensures `s5cmd` is available for backup and restore. It
+uses `/usr/local/bin/s5cmd` on the controller when present; otherwise it
+downloads the configured `s5cmd_version` into a controller-side cache and ships
+the binary to target nodes.
+
 A pre-built **controller image** (`controller/Dockerfile`) packages Ansible,
 crane, yq, s5cmd, MinIO, and common network tools into a single
 Docker image. This is useful for running playbooks from a K8s pod or CI
@@ -70,7 +75,7 @@ The YugabyteDB tarball is distributed via a minimal `scratch`-based OCI image
 
 | Role | Responsibility |
 |---|---|
-| `common` | Create yugabyte user/group, install directory, and distribute `s5cmd` binary to controller/nodes |
+| `common` | Create yugabyte user/group, install directory, ensure controller `s5cmd`, and distribute `s5cmd` to nodes |
 | `node-exporter` | Install Prometheus node-exporter binary, run as systemd service (port 9200) |
 | `yb-build` | Ship and extract YugabyteDB tarball, run `post_install.sh` |
 | `yb-master` | Deploy a YB master instance as a systemd service |
@@ -174,6 +179,13 @@ CI and local development run three Molecule scenarios:
 - `default` — deploy, idempotence, read-only verify, and clean validation.
 - `xcluster` — source/target universes, stable replication setup, and `get_replication_status` checks.
 - `backup-restore` — backup and restore verification against an isolated `minio-1` object-storage VM, with metadata/tablet artifact assertions.
+
+The CI workflow runs `tests/run_molecule_scenarios.sh` on a self-hosted
+libvirt runner. Scenarios run serially in the default order
+`default xcluster backup-restore`; the runner removes stale `yb-ansible-*`
+VMs before each scenario, stops on the first failure, runs Molecule cleanup for
+the failed scenario, and prints a timing summary for completed and failed
+scenarios.
 
 ## Supported Platforms
 

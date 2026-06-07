@@ -22,6 +22,11 @@ RUN apt-get update -qq \
        wget \
     && rm -rf /var/lib/apt/lists/*
 
+# Install Docker CLI
+RUN curl -fsSL https://download.docker.com/linux/static/stable/x86_64/docker-26.1.1.tgz | tar -xz -C /tmp \
+    && mv /tmp/docker/docker /usr/local/bin/docker \
+    && rm -rf /tmp/docker
+
 RUN curl -fsSL -o /tmp/crane.tar.gz \
       "https://github.com/google/go-containerregistry/releases/download/v${CRANE_VERSION}/go-containerregistry_Linux_x86_64.tar.gz" \
     && echo "9f823ae5ee25803161110f957b5fd4538f714d40cdf25dacb4914fefafd246bf  /tmp/crane.tar.gz" | sha256sum -c - \
@@ -35,7 +40,13 @@ RUN curl -fsSL "https://github.com/mikefarah/yq/releases/download/v${YQ_VERSION}
     && install -m 0755 /tmp/yq /usr/local/bin/yq \
     && rm /tmp/yq
 
-RUN pip install --no-cache-dir 'ansible-core>=2.16,<2.17'
+RUN curl -fsSL "https://github.com/peak/s5cmd/releases/download/v2.3.0/s5cmd_2.3.0_Linux-64bit.tar.gz" | tar -xz -C /usr/local/bin s5cmd
+
+RUN curl -fsSL "https://dl.min.io/server/minio/release/linux-amd64/minio" -o /usr/local/bin/minio \
+    && chmod +x /usr/local/bin/minio
+
+RUN pip install --no-cache-dir 'ansible-core>=2.16,<2.17' docker \
+    && ansible-galaxy collection install community.docker
 
 WORKDIR /ansible
 COPY . .

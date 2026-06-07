@@ -1,0 +1,11 @@
+yb_backup_minio_endpoint: ""
+yb_backup_minio_access_key: ""
+yb_backup_minio_secret_key: ""
+yb_backup_minio_bucket: "yb-backups"
+yb_backup_alias: "minio-backup"
+yb_snapshot_db: "yugabyte"
+yb_admin_path: "/opt/yugabyte/bin/yb-admin"
+yb_admin_delegate_host: "{{ groups['masters'][0] }}"
+yb_master_addresses: "{{ groups['masters'] | map('extract', hostvars, 'ansible_host') | join(',') }}"
+yb_data_dir: /data/yugabyte
+yb_tserver_data_dir: "{{ yb_data_dir }}/tserver"

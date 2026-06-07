@@ -1,0 +1,95 @@
+
+services:
+  source-master:
+    image: ${YB_REGISTRY:-yugabytedb}/${YB_IMAGE:-yugabyte}:${YB_VERSION:-2025.2.2.2-b11}
+    container_name: source-master
+    command: [ "/home/yugabyte/bin/yb-master",
+               "--fs_data_dirs=/home/yugabyte/yb_data",
+               "--rpc_bind_addresses=source-master:7100",
+               "--master_addresses=source-master:7100",
+               "--replication_factor=1" ]
+    ports:
+      - "127.0.0.1:${SOURCE_MASTER_PORT:-7001}:7000"
+    networks:
+      - yb-xcluster-net
+
+  source-tserver:
+    image: ${YB_REGISTRY:-yugabytedb}/${YB_IMAGE:-yugabyte}:${YB_VERSION:-2025.2.2.2-b11}
+    container_name: source-tserver
+    command: [ "/home/yugabyte/bin/yb-tserver",
+               "--fs_data_dirs=/home/yugabyte/yb_data",
+               "--rpc_bind_addresses=source-tserver:9100",
+               "--tserver_master_addrs=source-master:7100",
+               "--pgsql_proxy_bind_address=0.0.0.0:5433" ]
+    ports:
+      - "127.0.0.1:${SOURCE_TSERVER_PORT:-5433}:5433"
+    depends_on:
+      - source-master
+    networks:
+      - yb-xcluster-net
+
+  target-master:
+    image: ${YB_REGISTRY:-yugabytedb}/${YB_IMAGE:-yugabyte}:${YB_VERSION:-2025.2.2.2-b11}
+    container_name: target-master
+    command: [ "/home/yugabyte/bin/yb-master",
+               "--fs_data_dirs=/home/yugabyte/yb_data",
+               "--rpc_bind_addresses=target-master:7100",
+               "--master_addresses=target-master:7100",
+               "--replication_factor=1" ]
+    ports:
+      - "127.0.0.1:${TARGET_MASTER_PORT:-7002}:7000"
+    networks:
+      - yb-xcluster-net
+
+  target-tserver:
+    image: ${YB_REGISTRY:-yugabytedb}/${YB_IMAGE:-yugabyte}:${YB_VERSION:-2025.2.2.2-b11}
+    container_name: target-tserver
+    command: [ "/home/yugabyte/bin/yb-tserver",
+               "--fs_data_dirs=/home/yugabyte/yb_data",
+               "--rpc_bind_addresses=target-tserver:9100",
+               "--tserver_master_addrs=target-master:7100",
+               "--pgsql_proxy_bind_address=0.0.0.0:5433" ]
+    ports:
+      - "127.0.0.1:${TARGET_TSERVER_PORT:-5434}:5433"
+    depends_on:
+      - target-master
+    networks:
+      - yb-xcluster-net
+
+  ansible-controller:
+    image: yb-ansible-controller:test
+    build:
+      context: ./controller
+      args:
+        YB_SOURCE_IMAGE: ${YB_REGISTRY:-yugabytedb}/${YB_IMAGE:-yugabyte}:${YB_VERSION:-2025.2.2.2-b11}
+    container_name: ansible-controller
+    volumes:
+      - .:/ansible
+      - /var/run/docker.sock:/var/run/docker.sock
+    working_dir: /ansible
+    environment:
+      - ANSIBLE_CONFIG=/ansible/ansible.cfg
+      - ANSIBLE_HOST_KEY_CHECKING=False
+    depends_on:
+      - source-tserver
+      - target-tserver
+    networks:
+      - yb-xcluster-net
+    command: sleep infinity
+
+  minio:
+    image: minio/minio
+    container_name: minio
+    ports:
+      - "127.0.0.1:${MINIO_PORT:-9000}:9000"
+      - "127.0.0.1:${MINIO_CONSOLE_PORT:-9001}:9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    command: server /data --console-address ":9001"
+    networks:
+      - yb-xcluster-net
+
+networks:
+  yb-xcluster-net:
+    driver: bridge

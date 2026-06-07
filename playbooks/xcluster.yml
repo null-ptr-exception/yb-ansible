@@ -1,0 +1,6 @@
+---
+- name: Configure YugabyteDB xCluster Replication
+  hosts: "{{ yb_admin_delegate_host | default(groups['masters'][0]) }}"
+  gather_facts: false
+  roles:
+    - yb-xcluster

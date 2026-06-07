@@ -1,7 +1,6 @@
 ---
 driver:
   name: default
-
 platforms:
   - name: master-1
     groups:
@@ -27,7 +26,12 @@ platforms:
     vcpus: 2
     ram_mb: 1024
     disk_gb: 20
-
+  - name: minio-1
+    groups:
+      - minio
+    vcpus: 1
+    ram_mb: 1024
+    disk_gb: 10
 provisioner:
   name: ansible
   inventory:
@@ -45,6 +49,5 @@ provisioner:
   config_options:
     ssh_connection:
       ssh_args: -o UserKnownHostsFile=${MOLECULE_PROJECT_DIRECTORY}/.vms/known_hosts
-
 verifier:
   name: ansible

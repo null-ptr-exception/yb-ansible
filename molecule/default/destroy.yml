@@ -26,8 +26,8 @@
             cmd: |
               virsh destroy {{ vm_prefix }}-{{ item.name }} 2>/dev/null || true
               virsh snapshot-delete {{ vm_prefix }}-{{ item.name }} clean-base 2>/dev/null || true
-              virsh undefine {{ vm_prefix }}-{{ item.name }} --snapshots-metadata --remove-all-storage 2>/dev/null \
-                || virsh undefine {{ vm_prefix }}-{{ item.name }} --snapshots-metadata 2>/dev/null || true
+              virsh undefine {{ vm_prefix }}-{{ item.name }} --snapshots-metadata --remove-all-storage --nvram 2>/dev/null \
+                || virsh undefine {{ vm_prefix }}-{{ item.name }} --snapshots-metadata --nvram 2>/dev/null || true
             executable: /bin/bash
           loop: "{{ molecule_yml.platforms }}"
           loop_control:

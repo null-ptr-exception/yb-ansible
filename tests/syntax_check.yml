@@ -1,0 +1,8 @@
+---
+- name: Syntax check
+  hosts: localhost
+  roles:
+    - yb-backup
+    - yb-restore
+    - yb-snapshot
+    - yb-xcluster

@@ -1,0 +1,7 @@
+---
+- name: Backup YugabyteDB Tables
+  hosts: all
+  become: true
+  roles:
+    - common
+    - yb-backup

@@ -1,0 +1,20 @@
+# roles/yb-restore/defaults/main.yml
+yb_snapshot_id: ""
+yb_restore_source: "minio"  # local or minio
+yb_restore_db_name: "yugabyte"
+yb_restore_temp_dir: "/tmp/yb_restore"
+yb_restore_data_temp_dir: "/tmp/yb_restore_data/{{ yb_snapshot_id }}"
+yb_restore_source_hostname: "{{ inventory_hostname }}"
+
+# Minio config (should match yb-backup)
+yb_backup_minio_endpoint: ""
+yb_backup_minio_access_key: ""
+yb_backup_minio_secret_key: ""
+yb_backup_alias: "minio-backup"
+yb_backup_minio_bucket: "yb-backups"
+
+yb_admin_path: "/opt/yugabyte/bin/yb-admin"
+yb_admin_delegate_host: "{{ groups['masters'][0] }}"
+yb_master_addresses: "{{ groups['masters'] | map('extract', hostvars, 'ansible_host') | join(',') }}"
+yb_data_dir: /data/yugabyte
+yb_tserver_data_dir: "{{ yb_data_dir }}/tserver"

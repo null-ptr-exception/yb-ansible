@@ -1,0 +1,62 @@
+---
+- name: Capture start timestamp
+  ansible.builtin.set_fact:
+    yb_snapshot_start_time: "{{ lookup('pipe', 'date +%s') }}"
+
+- name: Create database snapshot
+  block:
+    - name: Run create_database_snapshot
+      ansible.builtin.command: >
+        {{ yb_admin_path }} -master_addresses {{ yb_master_addresses }}
+        create_database_snapshot {{ yb_snapshot_db }}
+      register: create_output
+      retries: 3
+      delay: 10
+      until: create_output.rc == 0
+
+    - name: Extract Snapshot ID
+      ansible.builtin.set_fact:
+        yb_snapshot_id: "{{ create_output.stdout | regex_search('Started snapshot creation: ([a-f0-9-]+)', '\\1') | first }}"
+
+    - name: Verify Snapshot ID was found
+      ansible.builtin.assert:
+        that:
+          - yb_snapshot_id is defined
+          - yb_snapshot_id | length > 0
+        fail_msg: "Failed to extract Snapshot ID from command output: {{ create_output.stdout }}"
+
+  rescue:
+    - name: Debug snapshot creation failure
+      ansible.builtin.debug:
+        msg:
+          - "Snapshot creation failed after retries."
+          - "stderr: {{ create_output.stderr | default('(none)') }}"
+          - "stdout: {{ create_output.stdout | default('(none)') }}"
+
+    - name: Fail with clear message
+      ansible.builtin.fail:
+        msg: "create_database_snapshot {{ yb_snapshot_db }} failed. See debug output above."
+
+- name: Print Snapshot ID
+  ansible.builtin.debug:
+    msg: "Snapshot ID: {{ yb_snapshot_id }}"
+
+- name: Wait for snapshot completion
+  ansible.builtin.command: >
+    {{ yb_admin_path }} -master_addresses {{ yb_master_addresses }}
+    list_snapshots
+  register: list_output
+  until: list_output.stdout is search(yb_snapshot_id ~ '\\s+COMPLETE')
+  retries: "{{ (yb_snapshot_timeout / yb_snapshot_poll_interval) | int }}"
+  delay: "{{ yb_snapshot_poll_interval }}"
+  changed_when: false
+
+- name: Capture end timestamp
+  ansible.builtin.set_fact:
+    yb_snapshot_end_time: "{{ lookup('pipe', 'date +%s') }}"
+
+- name: Calculate and report spent time
+  ansible.builtin.debug:
+    msg:
+      - "Snapshot {{ yb_snapshot_id }} completed successfully."
+      - "Spent time: {{ (yb_snapshot_end_time | int) - (yb_snapshot_start_time | int) }} seconds."

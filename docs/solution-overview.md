@@ -98,7 +98,8 @@ The YugabyteDB tarball is distributed via a minimal `scratch`-based OCI image
 - Tarball shipped to `/opt/packages/yugabytedb/<version>/` on each node
 - Extracted to `/opt/yugabyte/` with `--strip-components=1`
 - Runs `bin/post_install.sh` to rewrite hardcoded library paths via `patchelf`
-- Idempotent: `.post_install_done` marker prevents re-running
+- Idempotent: `.post_install_done_<yb_shipper_tag>` marker prevents re-running
+  post-install work for the same YugabyteDB package tag
 
 ### yb-master
 
@@ -155,7 +156,7 @@ Two complementary layers:
 Each role includes `verify.yml` that runs at the end of deployment.
 If verification fails, deployment fails immediately.
 
-- **yb-build** — binary exists, version matches `yb_shipper_tag`
+- **yb-build** — binary exists, release/build matches `yb_shipper_tag`
 - **node-exporter** — port listening, `/metrics` returns 200
 - **yb-master** — RPC/web ports listening, master API returns LEADER/FOLLOWER roles
 - **yb-tserver** — RPC/YSQL ports listening, health-check API returns 200, `SELECT 1` succeeds
@@ -189,4 +190,5 @@ scenarios.
 
 ## Supported Platforms
 
-- CentOS 7 / RHEL 7 (target nodes)
+- RHEL 8-compatible Linux hosts (target nodes)
+- CentOS Stream 8 GenericCloud VMs (Molecule/libvirt validation)

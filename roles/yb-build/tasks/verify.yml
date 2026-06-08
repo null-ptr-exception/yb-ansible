@@ -17,5 +17,7 @@
 
 - name: Assert YB version matches
   ansible.builtin.assert:
-    that: "yb_shipper_tag in _yb_verify_version.stdout"
+    that:
+      - "('version ' ~ yb_shipper_version) in _yb_verify_version.stdout"
+      - "('build ' ~ (yb_shipper_build_number | string)) in _yb_verify_version.stdout"
     fail_msg: "Version mismatch: expected {{ yb_shipper_tag }}, got {{ _yb_verify_version.stdout }}"

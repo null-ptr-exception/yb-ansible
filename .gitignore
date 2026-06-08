@@ -4,3 +4,4 @@ inventory.ini
 .vms/
 .venv/
 .cache/
+.worktrees/

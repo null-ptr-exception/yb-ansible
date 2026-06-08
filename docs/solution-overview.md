@@ -55,10 +55,15 @@ This approach:
 - Caches packages on both the controller and each node for reinstalls
 - Only crane (single static binary) is needed on the controller, no container runtime required
 
+The `common` role also ensures `s5cmd` is available for backup and restore. It
+uses `/usr/local/bin/s5cmd` on the controller when present; otherwise it
+downloads the configured `s5cmd_version` into a controller-side cache and ships
+the binary to target nodes.
+
 A pre-built **controller image** (`controller/Dockerfile`) packages Ansible,
-crane, and common network tools into a single Docker image. This is useful for
-running playbooks from a K8s pod or CI environment without installing
-dependencies on the host.
+crane, yq, s5cmd, MinIO, and common network tools into a single
+Docker image. This is useful for running playbooks from a K8s pod or CI
+environment without installing dependencies on the host.
 
 ### OCI Shipper Image
 
@@ -70,11 +75,15 @@ The YugabyteDB tarball is distributed via a minimal `scratch`-based OCI image
 
 | Role | Responsibility |
 |---|---|
-| `common` | Create yugabyte user/group and install directory |
+| `common` | Create yugabyte user/group, install directory, ensure controller `s5cmd`, and distribute `s5cmd` to nodes |
 | `node-exporter` | Install Prometheus node-exporter binary, run as systemd service (port 9200) |
 | `yb-build` | Ship and extract YugabyteDB tarball, run `post_install.sh` |
 | `yb-master` | Deploy a YB master instance as a systemd service |
 | `yb-tserver` | Deploy a YB tserver instance as a systemd service |
+| `yb-xcluster` | Setup transactional xCluster replication between universes |
+| `yb-snapshot` | Create and manage distributed YSQL database snapshots |
+| `yb-backup` | Backup a snapshot to an S3-compatible target |
+| `yb-restore` | Restore a snapshot backup from an S3-compatible target |
 
 ### node-exporter
 
@@ -106,6 +115,37 @@ The YugabyteDB tarball is distributed via a minimal `scratch`-based OCI image
 - Supports arbitrary gflags via `yb_tserver_flags`
 - Installs and starts systemd service
 
+### yb-xcluster
+
+- Uses a stable replication ID (`xcluster_repl_id`) derived from
+  `xcluster_id_prefix` and database names, unless explicitly overridden.
+- Resolves source Table IDs with `yb-admin list_tables`.
+- Supports optional per-database `tables` allowlists and skips YSQL system schemas.
+- Configures transactional xCluster replication via `yb-admin setup_universe_replication`.
+- Polls `yb-admin get_replication_status` until the status output is present and contains no errors.
+
+### yb-snapshot
+
+- Initiates snapshot creation for a YSQL database via `yb-admin create_database_snapshot`.
+- Parses command output to extract the Snapshot ID.
+- Polls `yb-admin list_snapshots` until the snapshot reaches a `COMPLETE` state.
+
+### yb-backup
+
+- Automatically triggers a snapshot (via `yb-snapshot`) if no snapshot ID is passed.
+- Exports snapshot metadata on the configured admin master and uploads it to MinIO/S3 target using `s5cmd`.
+- Searches for tablet snapshot directories on TServers and uploads tablet data in parallel directly to the target via `s5cmd cp` (preventing controller network bottleneck).
+- Stores artifacts under `s3://<bucket>/<snapshot_id>/metadata/metadata.snapshot` and `s3://<bucket>/<snapshot_id>/data/<tserver-hostname>/`.
+
+### yb-restore
+
+- Downloads snapshot metadata from MinIO/S3 target to the configured admin master.
+- Imports the snapshot structure into the target cluster via `yb-admin import_snapshot` from the configured admin master.
+- Extracts target snapshot ID, table mappings, and tablet mappings from the import output.
+- Mirrors tablet backup data in parallel from MinIO/S3 to TServers' temporary directory.
+- Relocates and moves tablet data directories to final RocksDB directory paths according to mapping rules.
+- Triggers the restore operation via `yb-admin restore_snapshot` from the configured admin master and waits for completion.
+
 ## Verification
 
 Two complementary layers:
@@ -120,7 +160,7 @@ If verification fails, deployment fails immediately.
 - **yb-master** — RPC/web ports listening, master API returns LEADER/FOLLOWER roles
 - **yb-tserver** — RPC/YSQL ports listening, health-check API returns 200, `SELECT 1` succeeds
 
-### Standalone verify.yml playbook
+### Standalone playbooks/verify.yml playbook
 
 Read-only playbook for on-demand health checks. Performs cluster-level assertions:
 
@@ -129,9 +169,24 @@ Read-only playbook for on-demand health checks. Performs cluster-level assertion
 - All tservers are ALIVE in the master's tablet-server list
 
 ```bash
-ansible-playbook -i inventory.ini verify.yml
+ansible-playbook -i inventory.ini playbooks/verify.yml
 ```
+
+### Molecule scenarios
+
+CI and local development run three Molecule scenarios:
+
+- `default` — deploy, idempotence, read-only verify, and clean validation.
+- `xcluster` — source/target universes, stable replication setup, and `get_replication_status` checks.
+- `backup-restore` — backup and restore verification against an isolated `minio-1` object-storage VM, with metadata/tablet artifact assertions.
+
+The CI workflow runs `tests/run_molecule_scenarios.sh` on a self-hosted
+libvirt runner. Scenarios run serially in the default order
+`default xcluster backup-restore`; the runner removes stale `yb-ansible-*`
+VMs before each scenario, stops on the first failure, runs Molecule cleanup for
+the failed scenario, and prints a timing summary for completed and failed
+scenarios.
 
 ## Supported Platforms
 
-- Ubuntu 22.04 LTS
+- CentOS 7 / RHEL 7 (target nodes)

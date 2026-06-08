@@ -45,4 +45,4 @@
         state: absent
 
 - name: Re-deploy (should recover tserver-1)
-  ansible.builtin.import_playbook: ../../deploy.yml
+  ansible.builtin.import_playbook: ../../playbooks/deploy.yml

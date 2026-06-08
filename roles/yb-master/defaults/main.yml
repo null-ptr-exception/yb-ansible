@@ -7,3 +7,6 @@ yb_group: yugabyte
 yb_master_rpc_port: 7100
 yb_master_web_port: 7000
 yb_replication_factor: 3
+
+yb_master_service_name: yb-master
+yb_master_data_dir: "{{ yb_data_dir }}/master"

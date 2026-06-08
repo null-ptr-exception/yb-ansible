@@ -18,9 +18,9 @@
   ansible.builtin.set_fact:
     _has_snapshot: >-
       {{ _vm_state.rc == 0
-         and 'clean-base' in (_vm_snapshots.stdout_lines | default([])) }}
+         and molecule_snapshot_name in (_vm_snapshots.stdout_lines | default([])) }}
 
-- name: "Revert {{ vm_prefix }}-{{ platform.name }} to clean-base snapshot"
+- name: "Revert {{ vm_prefix }}-{{ platform.name }} to clean base snapshot"
   when: _has_snapshot | bool
   block:
     - name: Force off VM before revert
@@ -31,7 +31,7 @@
 
     - name: Revert to clean-base snapshot
       ansible.builtin.command:
-        cmd: "virsh snapshot-revert {{ vm_prefix }}-{{ platform.name }} clean-base"
+        cmd: "virsh snapshot-revert {{ vm_prefix }}-{{ platform.name }} {{ molecule_snapshot_name }}"
 
     - name: Start VM from snapshot
       ansible.builtin.command:

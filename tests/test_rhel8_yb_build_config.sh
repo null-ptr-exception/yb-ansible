@@ -45,11 +45,14 @@ assert_contains .github/workflows/build-shipper.yml 'tags: \${{ env\.REGISTRY }}
 assert_contains shipper/build.sh 'IMAGE="\${3:-yb-shipper:\${YB_VERSION}-\${YB_BUILD}}"'
 assert_contains molecule/default/create.yml 'CentOS-Stream-GenericCloud-8-latest\.x86_64\.qcow2'
 assert_contains molecule/default/create.yml '^[[:space:]]*molecule_ssh_user:[[:space:]]+cloud-user[[:space:]]*$'
+assert_contains molecule/default/create.yml '^[[:space:]]*molecule_snapshot_name:[[:space:]]+clean-base-centos-stream8[[:space:]]*$'
+assert_contains molecule/default/create.yml "lookup\\('file', ssh_identity_file ~ '\\.pub', errors='ignore'\\)"
 assert_contains molecule/default/create.yml "'user': molecule_ssh_user"
 assert_contains molecule/default/create.yml '{{ molecule_ssh_user }}@{{ item\.address }}'
 assert_contains molecule/default/create.yml 'ansible_user={{ molecule_ssh_user }}'
 assert_contains molecule/default/tasks/create_vm.yml '--os-variant (centos-stream8|rhel8\.[0-9]+|rhel8-unknown)'
 assert_contains molecule/default/tasks/create_vm.yml '^[[:space:]]*-[[:space:]]*name:[[:space:]]+"{{ molecule_ssh_user }}"[[:space:]]*$'
+assert_contains molecule/default/tasks/create_vm.yml 'molecule_snapshot_name'
 assert_contains molecule/default/verify.yml '^[[:space:]]*yb_shipper_tag:[[:space:]]*"2025\.2\.3\.2-b1"[[:space:]]*$'
 
 assert_not_contains README.md 'CentOS 7|RHEL 7'
@@ -59,5 +62,11 @@ assert_not_contains molecule/default/tasks/create_vm.yml 'CentOS-\*|vault\.cento
 assert_not_contains molecule/default/molecule.yml 'ansible_user: centos'
 assert_not_contains molecule/xcluster/molecule.yml 'ansible_user: centos'
 assert_not_contains molecule/backup-restore/molecule.yml 'ansible_user: centos'
+assert_not_contains molecule/default/molecule.yml 'ansible_python_interpreter: /usr/bin/python3'
+assert_not_contains molecule/xcluster/molecule.yml 'ansible_python_interpreter: /usr/bin/python3'
+assert_not_contains molecule/backup-restore/molecule.yml 'ansible_python_interpreter: /usr/bin/python3'
+assert_contains molecule/default/molecule.yml 'ansible_python_interpreter: /usr/libexec/platform-python'
+assert_contains molecule/xcluster/molecule.yml 'ansible_python_interpreter: /usr/libexec/platform-python'
+assert_contains molecule/backup-restore/molecule.yml 'ansible_python_interpreter: /usr/libexec/platform-python'
 
 echo "PASS: RHEL 8 YugabyteDB build config"

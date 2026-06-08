@@ -26,16 +26,25 @@ assert_not_contains() {
 
 assert_contains roles/yb-build/defaults/main.yml '^[[:space:]]*yb_shipper_version:[[:space:]]*"2025\.2\.3\.2"[[:space:]]*$'
 assert_contains roles/yb-build/defaults/main.yml '^[[:space:]]*yb_shipper_build:[[:space:]]*"b1"[[:space:]]*$'
+assert_contains roles/yb-build/defaults/main.yml '^[[:space:]]*yb_shipper_build_number:[[:space:]]*"{{ yb_shipper_build \| regex_replace\('\''\^b'\'', '\'''\''\) }}"[[:space:]]*$'
 assert_contains roles/yb-build/defaults/main.yml '^[[:space:]]*yb_shipper_tag:[[:space:]]*"{{ yb_shipper_version }}-{{ yb_shipper_build }}"[[:space:]]*$'
+assert_contains roles/yb-build/tasks/main.yml '^[[:space:]]*_yb_expected_version:[[:space:]]*"version {{ yb_shipper_version }}"[[:space:]]*$'
+assert_contains roles/yb-build/tasks/main.yml '^[[:space:]]*_yb_expected_build:[[:space:]]*"build {{ yb_shipper_build_number }}"[[:space:]]*$'
+assert_contains roles/yb-build/tasks/main.yml '_yb_expected_version not in'
+assert_contains roles/yb-build/tasks/main.yml '_yb_expected_build not in'
+assert_contains roles/yb-build/tasks/main.yml '^[[:space:]]*_yb_post_install_marker:[[:space:]]*"{{ yb_install_dir }}/\.post_install_done_{{ yb_shipper_tag }}"[[:space:]]*$'
+assert_contains roles/yb-build/tasks/main.yml 'path: "{{ _yb_post_install_marker }}"'
+assert_contains roles/yb-build/tasks/verify.yml '\('\''version '\'' ~ yb_shipper_version\) in _yb_verify_version\.stdout'
+assert_contains roles/yb-build/tasks/verify.yml '\('\''build '\'' ~ \(yb_shipper_build_number \| string\)\) in _yb_verify_version\.stdout'
+# shellcheck disable=SC2016
+assert_contains .github/workflows/build-shipper.yml 'tags: \${{ env\.REGISTRY }}/\${{ env\.IMAGE_NAME }}:\${{ inputs\.yb_version }}-\${{ inputs\.yb_build }}'
+# shellcheck disable=SC2016
+assert_contains shipper/build.sh 'IMAGE="\${3:-yb-shipper:\${YB_VERSION}-\${YB_BUILD}}"'
 assert_contains molecule/default/create.yml 'CentOS-Stream-GenericCloud-8-latest\.x86_64\.qcow2'
 assert_contains molecule/default/create.yml "'user': 'cloud-user'"
 assert_contains molecule/default/tasks/create_vm.yml '--os-variant (centos-stream8|rhel8\.[0-9]+|rhel8-unknown)'
 assert_contains molecule/default/tasks/create_vm.yml '^[[:space:]]*-[[:space:]]*name:[[:space:]]+cloud-user[[:space:]]*$'
 assert_contains molecule/default/verify.yml '^[[:space:]]*yb_shipper_tag:[[:space:]]*"2025\.2\.3\.2-b1"[[:space:]]*$'
-# shellcheck disable=SC2016
-assert_contains .github/workflows/build-shipper.yml 'tags: \${{ env\.REGISTRY }}/\${{ env\.IMAGE_NAME }}:\${{ inputs\.yb_version }}-\${{ inputs\.yb_build }}'
-# shellcheck disable=SC2016
-assert_contains shipper/build.sh 'IMAGE="\${3:-yb-shipper:\${YB_VERSION}-\${YB_BUILD}}"'
 
 assert_not_contains README.md 'CentOS 7|RHEL 7'
 assert_not_contains docs/solution-overview.md 'CentOS 7|RHEL 7'

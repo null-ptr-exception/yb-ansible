@@ -34,7 +34,7 @@ assert_contains molecule/default/verify.yml '^[[:space:]]*yb_shipper_tag:[[:spac
 assert_not_contains README.md 'CentOS 7|RHEL 7'
 assert_not_contains docs/solution-overview.md 'CentOS 7|RHEL 7'
 assert_not_contains molecule/default/create.yml 'CentOS-7|centos@|ansible_user=centos'
-assert_not_contains molecule/default/tasks/create_vm.yml 'CentOS-\\*|vault\.centos\.org|centos7\.0|^[[:space:]]*-[[:space:]]*name:[[:space:]]+centos[[:space:]]*$'
+assert_not_contains molecule/default/tasks/create_vm.yml 'CentOS-\*|vault\.centos\.org|centos7\.0|^[[:space:]]*-[[:space:]]*name:[[:space:]]+centos[[:space:]]*$'
 assert_not_contains molecule/default/molecule.yml 'ansible_user: centos'
 assert_not_contains molecule/xcluster/molecule.yml 'ansible_user: centos'
 assert_not_contains molecule/backup-restore/molecule.yml 'ansible_user: centos'

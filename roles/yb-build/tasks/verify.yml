@@ -15,9 +15,14 @@
   register: _yb_verify_version
   changed_when: false
 
+- name: Parse installed YB version strings
+  ansible.builtin.set_fact:
+    _yb_verify_installed_version: "{{ (_yb_verify_version.stdout | default('') | regex_search('version\\s+(\\S+)', '\\1') | default([''], true) | first) }}"
+    _yb_verify_installed_build: "{{ (_yb_verify_version.stdout | default('') | regex_search('build\\s+(\\S+)', '\\1') | default([''], true) | first) }}"
+
 - name: Assert YB version matches
   ansible.builtin.assert:
     that:
-      - "('version ' ~ yb_shipper_version) in _yb_verify_version.stdout"
-      - "('build ' ~ (yb_shipper_build_number | string)) in _yb_verify_version.stdout"
+      - "_yb_verify_installed_version == yb_shipper_version"
+      - "_yb_verify_installed_build == (yb_shipper_build_number | string)"
     fail_msg: "Version mismatch: expected {{ yb_shipper_tag }}, got {{ _yb_verify_version.stdout }}"

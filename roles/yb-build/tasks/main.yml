@@ -11,17 +11,17 @@
   changed_when: false
   when: _yb_exists.stat.exists
 
-- name: Set expected YB version strings
+- name: Parse installed YB version strings
   ansible.builtin.set_fact:
-    _yb_expected_version: "version {{ yb_shipper_version }}"
-    _yb_expected_build: "build {{ yb_shipper_build_number }}"
+    _yb_installed_version: "{{ (_yb_version_output.stdout | default('') | regex_search('version\\s+(\\S+)', '\\1') | default([''], true) | first) }}"
+    _yb_installed_build: "{{ (_yb_version_output.stdout | default('') | regex_search('build\\s+(\\S+)', '\\1') | default([''], true) | first) }}"
 
 - name: Determine if install is needed
   ansible.builtin.set_fact:
     _yb_needs_install: >-
       {{ not _yb_exists.stat.exists
-         or (_yb_expected_version not in (_yb_version_output.stdout | default('')))
-         or (_yb_expected_build not in (_yb_version_output.stdout | default(''))) }}
+         or _yb_installed_version != yb_shipper_version
+         or _yb_installed_build != (yb_shipper_build_number | string) }}
 
 - name: Set post_install marker path
   ansible.builtin.set_fact:

@@ -16,7 +16,7 @@ provisioner:
   inventory:
     group_vars:
       all:
-        ansible_user: centos
+        ansible_user: cloud-user
         ansible_python_interpreter: /usr/bin/python3
         yb_shipper_registry: ${MOLECULE_YB_SHIPPER_REGISTRY:-ghcr.io}
         crane_insecure: ${MOLECULE_CRANE_INSECURE:-false}

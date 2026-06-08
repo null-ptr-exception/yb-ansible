@@ -2,6 +2,7 @@
 *.retry
 inventory.ini
 .vms/
+.venv
 .venv/
 .cache/
 .worktrees/

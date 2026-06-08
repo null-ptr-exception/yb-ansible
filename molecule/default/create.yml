@@ -93,7 +93,6 @@
           {{ instance_conf | default([]) + [{
             'instance': item.item.name,
             'address': item.stdout | regex_search('(\d+\.){3}\d+'),
-            # Contract compatibility: molecule_ssh_user resolves to 'user': 'cloud-user'.
             'user': molecule_ssh_user,
             'port': '22',
             'identity_file': ssh_identity_file

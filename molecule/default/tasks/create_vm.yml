@@ -86,7 +86,7 @@
             - swapon /swapfile
             - echo "/swapfile none swap sw 0 0" >> /etc/fstab
           users:
-            - name: cloud-user
+            - name: "{{ molecule_ssh_user }}"
               sudo: ALL=(ALL) NOPASSWD:ALL
               shell: /bin/bash
               ssh_authorized_keys:

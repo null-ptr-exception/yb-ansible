@@ -40,9 +40,6 @@ RUN curl -fsSL "https://github.com/mikefarah/yq/releases/download/v${YQ_VERSION}
     && install -m 0755 /tmp/yq /usr/local/bin/yq \
     && rm /tmp/yq
 
-RUN curl -fsSL "https://dl.min.io/server/minio/release/linux-amd64/minio" -o /usr/local/bin/minio \
-    && chmod +x /usr/local/bin/minio
-
 RUN pip install --no-cache-dir 'ansible-core>=2.16,<2.17' docker \
     && ansible-galaxy collection install community.docker
 

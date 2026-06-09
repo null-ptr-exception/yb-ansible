@@ -24,7 +24,7 @@ assert_not_contains() {
 
 assert_contains molecule/xcluster/verify.yml 'xcluster_repl_id:'
 assert_contains molecule/xcluster/verify.yml "hash('md5')"
-assert_not_contains molecule/xcluster/verify.yml 'get_replication_status repl_de5e868e'
+assert_not_contains molecule/xcluster/verify.yml 'get_replication_status repl_'
 assert_contains molecule/xcluster/verify.yml 'get_replication_status {{ xcluster_repl_id }}'
 
 echo "PASS: xcluster replication ID is derived dynamically"

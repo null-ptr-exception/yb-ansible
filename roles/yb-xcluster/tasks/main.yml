@@ -17,10 +17,12 @@
   failed_when:
     - setup_output.rc != 0
     - "'already exists' not in setup_output.stderr"
+    - "'already exists' not in setup_output.stdout"
     - "'already present' not in setup_output.stderr"
     - "'already present' not in setup_output.stdout"
   changed_when:
     - "'already exists' not in setup_output.stderr"
+    - "'already exists' not in setup_output.stdout"
     - "'already present' not in setup_output.stderr"
     - "'already present' not in setup_output.stdout"
 

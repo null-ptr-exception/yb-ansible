@@ -7,12 +7,12 @@
   tasks:
     - name: Stop yb-master
       ansible.builtin.systemd:
-        name: "{{ yb_master_service_name }}"
+        name: "{{ yb_master_service_name | default('yb-master') }}"
         state: stopped
 
     - name: Start yb-master
       ansible.builtin.systemd:
-        name: "{{ yb_master_service_name }}"
+        name: "{{ yb_master_service_name | default('yb-master') }}"
         state: started
         daemon_reload: true
 
@@ -35,12 +35,12 @@
   tasks:
     - name: Stop yb-tserver
       ansible.builtin.systemd:
-        name: "{{ yb_tserver_service_name }}"
+        name: "{{ yb_tserver_service_name | default('yb-tserver') }}"
         state: stopped
 
     - name: Start yb-tserver
       ansible.builtin.systemd:
-        name: "{{ yb_tserver_service_name }}"
+        name: "{{ yb_tserver_service_name | default('yb-tserver') }}"
         state: started
         daemon_reload: true
 

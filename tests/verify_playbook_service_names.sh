@@ -27,6 +27,8 @@ assert_contains playbooks/verify.yml 'yb_tserver_service_name: "{{ hostvars[inve
 assert_contains playbooks/verify.yml 'cmd: "systemctl is-active {{ yb_master_service_name }}"'
 assert_contains playbooks/verify.yml 'cmd: "systemctl is-active {{ yb_tserver_service_name }}"'
 assert_not_contains playbooks/verify.yml 'cmd: systemctl is-active yb-master'
+assert_not_contains playbooks/verify.yml 'cmd: "systemctl is-active yb-master"'
 assert_not_contains playbooks/verify.yml 'cmd: systemctl is-active yb-tserver'
+assert_not_contains playbooks/verify.yml 'cmd: "systemctl is-active yb-tserver"'
 
 echo "PASS: verify playbook service names use role variables"

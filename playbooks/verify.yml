@@ -41,10 +41,11 @@
   vars:
     yb_master_rpc_port: 7100
     yb_master_web_port: 7000
+    yb_master_service_name: "{{ hostvars[inventory_hostname].yb_master_service_name | default('yb-master') }}"
   tasks:
     - name: Check yb-master service is active
       ansible.builtin.command:
-        cmd: systemctl is-active yb-master
+        cmd: "systemctl is-active {{ yb_master_service_name }}"
       changed_when: false
       become: true
 
@@ -99,10 +100,11 @@
     yb_tserver_rpc_port: 9100
     yb_tserver_web_port: 9000
     db_port: 5433
+    yb_tserver_service_name: "{{ hostvars[inventory_hostname].yb_tserver_service_name | default('yb-tserver') }}"
   tasks:
     - name: Check yb-tserver service is active
       ansible.builtin.command:
-        cmd: systemctl is-active yb-tserver
+        cmd: "systemctl is-active {{ yb_tserver_service_name }}"
       changed_when: false
       become: true
 

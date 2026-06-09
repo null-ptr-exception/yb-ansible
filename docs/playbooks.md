@@ -14,6 +14,9 @@
 - Use `ansible.builtin.*` FQCNs for builtin task plugins in playbooks and roles.
 - At minimum, always spell out `ansible.builtin.debug`, `ansible.builtin.set_fact`,
   `ansible.builtin.command`, `ansible.builtin.fail`, and `ansible.builtin.import_tasks`.
+- Never hardcode systemd service names in verification playbooks; use the role
+  variables (`yb_master_service_name`, `yb_tserver_service_name`) so custom
+  service names remain verifiable.
 - Keep new playbook changes consistent with the existing FQCN style across this repo.
 
 ## deploy.yml

@@ -1,0 +1,11 @@
+---
+# roles/yb-xcluster/defaults/main.yml
+xcluster_source_masters: ""
+xcluster_target_masters: ""
+xcluster_databases: []
+xcluster_id_prefix: "repl"
+xcluster_repl_id: "{{ xcluster_id_prefix }}_{{ (xcluster_databases | map(attribute='name') | list | join('_') | hash('md5'))[:8] }}"
+yb_admin_path: "/opt/yugabyte/bin/yb-admin"
+xcluster_wait_for_active: true
+xcluster_wait_timeout: 300
+xcluster_admin_timeout: 120

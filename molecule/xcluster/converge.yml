@@ -1,0 +1,123 @@
+---
+- name: Converge xCluster Setup
+  hosts: all
+  become: true
+  vars:
+    yb_replication_factor: 1
+  tasks:
+    - name: Base Setup
+      ansible.builtin.include_role:
+        name: "{{ item }}"
+      loop: [common, yb-build]
+
+    - name: Deploy Source Universe
+      ansible.builtin.include_role:
+        name: "{{ item }}"
+      vars:
+        yb_master_rpc_port: 7100
+        yb_master_web_port: 7000
+        yb_tserver_rpc_port: 9100
+        yb_tserver_web_port: 9000
+        db_port: 5433
+        yb_master_service_name: yb-master-source
+        yb_tserver_service_name: yb-tserver-source
+        yb_master_data_dir: /data/yugabyte/source/master
+        yb_tserver_data_dir: /data/yugabyte/source/tserver
+        yb_master_addresses: "{{ ansible_host }}:7100"
+        yb_tserver_flags:
+          yb_num_shards_per_tserver: 2
+          ysql_num_shards_per_tserver: 2
+          cql_proxy_bind_address: "0.0.0.0:9042"
+          redis_proxy_bind_address: "0.0.0.0:6379"
+          redis_proxy_webserver_port: 11000
+          cql_proxy_webserver_port: 12000
+          pgsql_proxy_webserver_port: 13000
+      loop: [yb-master, yb-tserver]
+
+    - name: Verify Source Universe Master
+      ansible.builtin.include_role:
+        name: yb-master
+        tasks_from: verify.yml
+      vars:
+        yb_master_rpc_port: 7100
+        yb_master_web_port: 7000
+        yb_master_service_name: yb-master-source
+        yb_master_addresses: "{{ ansible_host }}:7100"
+
+    - name: Verify Source Universe TServer
+      ansible.builtin.include_role:
+        name: yb-tserver
+        tasks_from: verify.yml
+      vars:
+        yb_tserver_rpc_port: 9100
+        yb_tserver_web_port: 9000
+        db_port: 5433
+        yb_tserver_service_name: yb-tserver-source
+        yb_master_addresses: "{{ ansible_host }}:7100"
+
+    - name: Deploy Target Universe
+      ansible.builtin.include_role:
+        name: "{{ item }}"
+      vars:
+        yb_master_rpc_port: 7101
+        yb_master_web_port: 7001
+        yb_tserver_rpc_port: 9101
+        yb_tserver_web_port: 9001
+        db_port: 5434
+        yb_master_service_name: yb-master-target
+        yb_tserver_service_name: yb-tserver-target
+        yb_master_data_dir: /data/yugabyte/target/master
+        yb_tserver_data_dir: /data/yugabyte/target/tserver
+        yb_master_addresses: "{{ ansible_host }}:7101"
+        yb_tserver_flags:
+          yb_num_shards_per_tserver: 2
+          ysql_num_shards_per_tserver: 2
+          cql_proxy_bind_address: "0.0.0.0:9043"
+          redis_proxy_bind_address: "0.0.0.0:6380"
+          redis_proxy_webserver_port: 11001
+          cql_proxy_webserver_port: 12001
+          pgsql_proxy_webserver_port: 13001
+      loop: [yb-master, yb-tserver]
+
+    - name: Verify Target Universe Master
+      ansible.builtin.include_role:
+        name: yb-master
+        tasks_from: verify.yml
+      vars:
+        yb_master_rpc_port: 7101
+        yb_master_web_port: 7001
+        yb_master_service_name: yb-master-target
+        yb_master_addresses: "{{ ansible_host }}:7101"
+
+    - name: Verify Target Universe TServer
+      ansible.builtin.include_role:
+        name: yb-tserver
+        tasks_from: verify.yml
+      vars:
+        yb_tserver_rpc_port: 9101
+        yb_tserver_web_port: 9001
+        db_port: 5434
+        yb_tserver_service_name: yb-tserver-target
+        yb_master_addresses: "{{ ansible_host }}:7101"
+
+    - name: Create Schemas
+      ansible.builtin.command: >
+        /opt/yugabyte/bin/ysqlsh -h {{ ansible_host }} -p {{ item }}
+        -c "CREATE TABLE IF NOT EXISTS test_table (id INT PRIMARY KEY, val TEXT);"
+      loop: [5433, 5434]
+      changed_when: false
+
+- name: Establish Replication
+  hosts: all
+  run_once: true
+  vars:
+    yb_admin_path: /opt/yugabyte/bin/yb-admin
+    xcluster_source_masters: "{{ ansible_host }}:7100"
+    xcluster_target_masters: "{{ ansible_host }}:7101"
+    xcluster_databases:
+      - name: yugabyte
+        type: ysql
+        tables:
+          - test_table
+  roles:
+    - yb-xcluster

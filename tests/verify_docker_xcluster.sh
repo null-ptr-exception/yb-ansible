@@ -1,9 +1,15 @@
 #!/bin/bash
 set -euo pipefail
 
+if command -v docker-compose >/dev/null 2>&1; then
+    DC=docker-compose
+else
+    DC='docker compose'
+fi
+
 cleanup() {
     echo "=== Cleaning up environment ==="
-    docker-compose down -v || true
+    $DC down -v || true
 }
 trap cleanup EXIT
 
@@ -58,8 +64,8 @@ echo "=== Building controller image ==="
 docker build -t yb-ansible-controller:test controller/
 
 echo "=== Starting YugabyteDB clusters ==="
-docker-compose down -v
-docker-compose up -d
+$DC down -v
+$DC up -d
 
 echo "=== Waiting for clusters to be ready ==="
 wait_for_ready source-tserver 5433

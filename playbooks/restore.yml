@@ -2,7 +2,7 @@
 ---
 - name: Restore YugabyteDB Backup
   hosts: all
-  become: false
+  become: true
   roles:
     - common
     - yb-restore

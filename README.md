@@ -1,6 +1,6 @@
 # yb-ansible
 
-Ansible playbooks for deploying YugabyteDB on RHEL-compatible Linux VMs (CentOS 7 / RHEL 7).
+Ansible playbooks for deploying YugabyteDB on RHEL 8-compatible Linux VMs.
 
 ## Requirements
 
@@ -15,7 +15,7 @@ Or use the pre-built [controller image](#controller-image) which includes all de
 
 **Target nodes:**
 
-- CentOS 7 / RHEL 7
+- RHEL 8-compatible Linux hosts
 - SSH access with sudo privileges
 
 ## Quick Start
@@ -100,15 +100,18 @@ Define two host groups — `masters` and `tservers`:
 
 ```ini
 [masters]
-10.0.0.1 ansible_user=centos
-10.0.0.2 ansible_user=centos
-10.0.0.3 ansible_user=centos
+10.0.0.1 ansible_user=cloud-user
+10.0.0.2 ansible_user=cloud-user
+10.0.0.3 ansible_user=cloud-user
 
 [tservers]
-10.0.0.4 ansible_user=centos
-10.0.0.5 ansible_user=centos
-10.0.0.6 ansible_user=centos
+10.0.0.4 ansible_user=cloud-user
+10.0.0.5 ansible_user=cloud-user
+10.0.0.6 ansible_user=cloud-user
 ```
+
+Use the SSH user configured on your RHEL 8-compatible images; `cloud-user` is
+used by the Molecule CentOS Stream 8 image.
 
 In production, masters and tservers should run on separate VMs.
 
@@ -204,7 +207,9 @@ Key variables:
 
 | Variable | Default | Description |
 |---|---|---|
-| `yb_shipper_tag` | `2.20.11.1` | YugabyteDB version |
+| `yb_shipper_version` | `2025.2.3.2` | YugabyteDB release version |
+| `yb_shipper_build` | `b1` | YugabyteDB build identifier |
+| `yb_shipper_tag` | `2025.2.3.2-b1` | Full YugabyteDB package and shipper tag |
 | `yb_shipper_image` | `ghcr.io/.../yb-shipper:{{ yb_shipper_tag }}` | OCI image containing the YB tarball |
 | `yb_install_dir` | `/opt/yugabyte` | YugabyteDB installation directory |
 | `yb_data_dir` | `/data/yugabyte` | YugabyteDB data directory |
@@ -396,4 +401,5 @@ molecule destroy -s default && molecule create -s default    # reset to clean OS
 
 ## Supported Platforms
 
-- CentOS 7 / RHEL 7
+- RHEL 8-compatible Linux hosts
+- CentOS Stream 8 GenericCloud VMs for local Molecule/libvirt validation

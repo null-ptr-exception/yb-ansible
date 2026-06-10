@@ -334,7 +334,7 @@ All nodes (parallel)
 ├─ Remove systemd unit files
 ├─ Reload systemd daemon
 ├─ Wipe data dirs (master + tserver under yb_data_dir)
-└─ Remove post_install marker (so post_install.sh re-runs on next deploy)
+└─ Remove versioned post_install marker (so post_install.sh re-runs on next deploy)
 ```
 
 ### Usage

@@ -62,6 +62,7 @@
     - name: Set s5cmd controller binary path fact on controller
       ansible.builtin.set_fact:
         s5cmd_controller_bin: "{{ (_s5cmd_system.stat.exists and (_s5cmd_system.stat.executable | default(false))) | ternary('/usr/local/bin/s5cmd', s5cmd_package_cache_dir ~ '/s5cmd') }}"
+      delegate_facts: true
 
     - name: Share s5cmd controller binary path with all hosts
       ansible.builtin.set_fact:

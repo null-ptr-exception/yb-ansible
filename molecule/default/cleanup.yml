@@ -1,0 +1,77 @@
+---
+- name: Check if Molecule instances are created
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tasks:
+    - name: Check if instance config exists
+      ansible.builtin.stat:
+        path: "{{ molecule_instance_config }}"
+      register: _instance_config
+
+    - name: Read instance config
+      ansible.builtin.slurp:
+        path: "{{ molecule_instance_config }}"
+      register: _instance_config_content
+      when: _instance_config.stat.exists and _instance_config.stat.size > 0
+
+    - name: Set facts about instance availability
+      ansible.builtin.set_fact:
+        instances_available: >-
+          {{
+            _instance_config.stat.exists
+            and _instance_config.stat.size > 0
+            and ((_instance_config_content.content | default('W10=') | b64decode | from_yaml) | length) > 0
+          }}
+
+- name: Cleanup and Collect Logs
+  hosts: all
+  gather_facts: false
+  become: true
+  ignore_unreachable: true
+  tasks:
+    - name: Create local logs directory on control node
+      ansible.builtin.file:
+        path: "{{ playbook_dir }}/../../logs/{{ inventory_hostname }}"
+        state: directory
+        mode: "0755"
+      delegate_to: localhost
+      become: false
+      run_once: false
+      when: hostvars['localhost']['instances_available'] | default(false) | bool
+
+    - name: Fetch MinIO logs
+      ansible.builtin.fetch:
+        src: /tmp/minio.log
+        dest: "{{ playbook_dir }}/../../logs/{{ inventory_hostname }}/minio.log"
+        flat: true
+        fail_on_missing: false
+      when: hostvars['localhost']['instances_available'] | default(false) | bool
+
+    - name: Dump yb-master systemd journal
+      ansible.builtin.shell: |
+        journalctl -u yb-master -u yb-master-source -u yb-master-target --no-pager > /tmp/yb-master.journal
+      failed_when: false
+      when: hostvars['localhost']['instances_available'] | default(false) | bool
+
+    - name: Fetch yb-master systemd journal
+      ansible.builtin.fetch:
+        src: /tmp/yb-master.journal
+        dest: "{{ playbook_dir }}/../../logs/{{ inventory_hostname }}/yb-master.journal"
+        flat: true
+        fail_on_missing: false
+      when: hostvars['localhost']['instances_available'] | default(false) | bool
+
+    - name: Dump yb-tserver systemd journal
+      ansible.builtin.shell: |
+        journalctl -u yb-tserver -u yb-tserver-source -u yb-tserver-target --no-pager > /tmp/yb-tserver.journal
+      failed_when: false
+      when: hostvars['localhost']['instances_available'] | default(false) | bool
+
+    - name: Fetch yb-tserver systemd journal
+      ansible.builtin.fetch:
+        src: /tmp/yb-tserver.journal
+        dest: "{{ playbook_dir }}/../../logs/{{ inventory_hostname }}/yb-tserver.journal"
+        flat: true
+        fail_on_missing: false
+      when: hostvars['localhost']['instances_available'] | default(false) | bool

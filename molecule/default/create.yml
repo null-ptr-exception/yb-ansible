@@ -60,8 +60,8 @@
         loop_var: platform
 
     - name: Wait for VMs to get IPs
-      ansible.builtin.pause:
-        seconds: 30
+      ansible.builtin.command: sleep 30
+      changed_when: false
 
     - name: Discover VM IPs
       ansible.builtin.command:

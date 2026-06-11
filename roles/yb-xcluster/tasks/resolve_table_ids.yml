@@ -1,13 +1,13 @@
 ---
 - name: List tables on source cluster to get IDs
-  command: >
+  ansible.builtin.command: >
     {{ yb_admin_path }} -master_addresses {{ xcluster_source_masters }}
     list_tables include_table_id
   register: yb_tables_raw
   changed_when: false
 
 - name: Parse table IDs for specified databases
-  set_fact:
+  ansible.builtin.set_fact:
     xcluster_table_ids: >-
       {%- set ids = [] -%}
       {%- for db in xcluster_databases -%}
@@ -26,10 +26,10 @@
       {{ ids | join(',') }}
 
 - name: Fail if no tables were found
-  fail:
+  ansible.builtin.fail:
     msg: "No tables found for databases: {{ xcluster_databases | map(attribute='name') | list | join(', ') }}"
   when: not xcluster_table_ids
 
 - name: Debug resolved table IDs
-  debug:
+  ansible.builtin.debug:
     var: xcluster_table_ids

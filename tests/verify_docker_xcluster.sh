@@ -44,7 +44,7 @@ verify_replication() {
   local elapsed=0
   local result=""
   while [ $elapsed -lt $timeout ]; do
-    result=$(docker exec target-tserver /home/yugabyte/bin/ysqlsh -h target-tserver -p 5433 -t -A -c "SELECT val FROM test_xcluster WHERE id = $id;")
+    result=$(docker exec target-tserver /home/yugabyte/bin/ysqlsh -h target-tserver -p 5433 -t -A -c "SELECT val FROM test_xcluster WHERE id = $id;" | tr -d '\r' | sed 's/[[:space:]]*$//')
     if [ "$result" == "$val" ]; then
       break
     fi

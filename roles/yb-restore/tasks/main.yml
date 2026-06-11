@@ -1,0 +1,167 @@
+---
+- name: Create metadata temp directory on admin host
+  ansible.builtin.file:
+    path: "{{ yb_restore_temp_dir }}/{{ yb_snapshot_id }}"
+    state: directory
+    mode: "0755"
+  delegate_to: "{{ yb_admin_delegate_host }}"
+  run_once: true
+
+- name: Create data temp directory on nodes
+  ansible.builtin.file:
+    path: "{{ yb_restore_data_temp_dir }}"
+    state: directory
+    mode: "0755"
+  when: inventory_hostname in groups['tservers']
+
+- name: Download metadata from Minio
+  ansible.builtin.command: >
+    /usr/local/bin/s5cmd --endpoint-url {{ yb_backup_minio_endpoint }} cp
+    s3://{{ yb_backup_minio_bucket }}/{{ yb_snapshot_id }}/metadata/metadata.snapshot
+    {{ yb_restore_temp_dir }}/{{ yb_snapshot_id }}/metadata.snapshot
+  environment:
+    AWS_ACCESS_KEY_ID: "{{ yb_backup_minio_access_key }}"
+    AWS_SECRET_ACCESS_KEY: "{{ yb_backup_minio_secret_key }}"
+  delegate_to: "{{ yb_admin_delegate_host }}"
+  run_once: true
+  when: yb_restore_source == 'minio'
+  no_log: "{{ ansible_verbosity < 3 }}"
+
+- name: Verify metadata file exists
+  ansible.builtin.stat:
+    path: "{{ yb_restore_temp_dir }}/{{ yb_snapshot_id }}/metadata.snapshot"
+  delegate_to: "{{ yb_admin_delegate_host }}"
+  run_once: true
+  register: _metadata_stat
+
+- name: Assert metadata file exists
+  ansible.builtin.assert:
+    that: _metadata_stat.stat.exists
+    fail_msg: "Metadata file not found at {{ yb_restore_temp_dir }}/{{ yb_snapshot_id }}/metadata.snapshot"
+  delegate_to: "{{ yb_admin_delegate_host }}"
+  run_once: true
+
+- name: Pull data from Minio to TServers (Temp Location)
+  ansible.builtin.command: >
+    /usr/local/bin/s5cmd --endpoint-url {{ yb_backup_minio_endpoint }} cp
+    s3://{{ yb_backup_minio_bucket }}/{{ yb_snapshot_id }}/data/{{ yb_restore_source_hostname }}/*
+    {{ yb_restore_data_temp_dir }}/
+  environment:
+    AWS_ACCESS_KEY_ID: "{{ yb_backup_minio_access_key }}"
+    AWS_SECRET_ACCESS_KEY: "{{ yb_backup_minio_secret_key }}"
+  when:
+    - yb_restore_source == 'minio'
+    - inventory_hostname in groups['tservers']
+  changed_when: true
+  no_log: false
+
+- name: Import snapshot into target cluster
+  ansible.builtin.command: >
+    {{ yb_admin_path }}
+    -master_addresses {{ yb_master_addresses }}
+    import_snapshot {{ yb_restore_temp_dir }}/{{ yb_snapshot_id }}/metadata.snapshot
+  delegate_to: "{{ yb_admin_delegate_host }}"
+  run_once: true
+  changed_when: true
+  register: _import_snapshot_out
+
+- name: Parse import_snapshot output into (old_table, new_table, old_tablet, new_tablet) tuples
+  ansible.builtin.set_fact:
+    _target_snapshot_id: >-
+      {{ (_import_snapshot_out.stdout | regex_search('Snapshot[ \t]+[a-f0-9-]+[ \t]+[a-f0-9-]+')).split() | last }}
+    _tablet_relocations: >-
+      {%- set result = [] -%}
+      {%- set current_table = [None, None] -%}
+      {%- for line in _import_snapshot_out.stdout_lines -%}
+        {%- set tbl_match = line | regex_search('Table[ \t]+[a-f0-9-]+[ \t]+[a-f0-9-]+') -%}
+        {%- if tbl_match -%}
+          {%- set tbl = tbl_match.split() -%}
+          {%- set _ = current_table.__setitem__(0, tbl[1]) -%}
+          {%- set _ = current_table.__setitem__(1, tbl[2]) -%}
+        {%- else -%}
+          {%- set tbt_match = line | regex_search('Tablet[ \t]+[0-9]+[ \t]+[a-f0-9-]+[ \t]+[a-f0-9-]+') -%}
+          {%- if tbt_match and current_table[0] -%}
+            {%- set tbt = tbt_match.split() -%}
+            {%- set _ = result.append({'old_table': current_table[0], 'new_table': current_table[1], 'old_tablet': tbt[2], 'new_tablet': tbt[3]}) -%}
+          {%- endif -%}
+        {%- endif -%}
+      {%- endfor -%}
+      {{ result }}
+  delegate_to: "{{ yb_admin_delegate_host }}"
+  run_once: true
+
+- name: Share mapping facts with all hosts
+  ansible.builtin.set_fact:
+    _target_snapshot_id: "{{ hostvars[ansible_play_hosts | first]['_target_snapshot_id'] }}"
+    _tablet_relocations: "{{ hostvars[ansible_play_hosts | first]['_tablet_relocations'] }}"
+
+- name: Relocate snapshot data on TServers
+  ansible.builtin.shell: |
+    OLD_TBL_ID="{{ item.old_table }}"
+    NEW_TBL_ID="{{ item.new_table }}"
+    OLD_TBT_ID="{{ item.old_tablet }}"
+    NEW_TBT_ID="{{ item.new_tablet }}"
+    TGT_SNAP_ID="{{ _target_snapshot_id }}"
+    SRC_SNAP_ID="{{ yb_snapshot_id }}"
+
+    SRC_SNAP_DIR="{{ yb_restore_data_temp_dir }}/yb-data/tserver/data/rocksdb/table-${OLD_TBL_ID}/tablet-${OLD_TBT_ID}.snapshots/${SRC_SNAP_ID}"
+    TGT_SNAP_DIR="{{ yb_tserver_data_dir }}/yb-data/tserver/data/rocksdb/table-${NEW_TBL_ID}/tablet-${NEW_TBT_ID}.snapshots/${TGT_SNAP_ID}"
+
+    if [ -d "$SRC_SNAP_DIR" ]; then
+      echo "Relocating tablet $OLD_TBT_ID -> $NEW_TBT_ID (table $OLD_TBL_ID -> $NEW_TBL_ID)"
+      mkdir -p "$TGT_SNAP_DIR"
+      cp -r "$SRC_SNAP_DIR/." "$TGT_SNAP_DIR/"
+      chown -R yugabyte:yugabyte "$(dirname "$TGT_SNAP_DIR")" || true
+    else
+      echo "Source snapshot directory not found: $SRC_SNAP_DIR (skipping)"
+    fi
+  loop: "{{ _tablet_relocations }}"
+  loop_control:
+    label: "{{ item.old_tablet }} -> {{ item.new_tablet }}"
+  become: true
+  when:
+    - inventory_hostname in groups['tservers']
+  changed_when: true
+
+- name: Restore snapshot on target cluster
+  ansible.builtin.command: >
+    {{ yb_admin_path }}
+    -master_addresses {{ yb_master_addresses }}
+    restore_snapshot {{ _target_snapshot_id }}
+  delegate_to: "{{ yb_admin_delegate_host }}"
+  run_once: true
+  changed_when: true
+  register: _restore_snapshot_out
+
+- name: Extract Restoration ID
+  ansible.builtin.set_fact:
+    _restoration_id: "{{ _restore_snapshot_out.stdout | regex_search('Restoration id: ([a-f0-9-]+)', '\\1') | first }}"
+  delegate_to: "{{ yb_admin_delegate_host }}"
+  run_once: true
+
+- name: Wait for restoration completion
+  ansible.builtin.command: >
+    {{ yb_admin_path }}
+    -master_addresses {{ yb_master_addresses }}
+    list_snapshot_restorations
+  register: _restorations_list
+  delegate_to: "{{ yb_admin_delegate_host }}"
+  run_once: true
+  until: >-
+    ((_restorations_list.stdout | from_json).restorations | selectattr('id', 'equalto', _restoration_id) | selectattr('state', 'equalto', 'RESTORED') | list | length) > 0
+  retries: 30
+  delay: 5
+  changed_when: false
+
+- name: Clean up temp restore directories
+  ansible.builtin.file:
+    path: "{{ yb_restore_temp_dir }}"
+    state: absent
+  delegate_to: "{{ yb_admin_delegate_host }}"
+  run_once: true
+
+- name: Clean up data temp directory on nodes
+  ansible.builtin.file:
+    path: "{{ yb_restore_data_temp_dir }}"
+    state: absent
+  when: inventory_hostname in groups['tservers']

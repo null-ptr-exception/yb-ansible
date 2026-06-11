@@ -1,0 +1,249 @@
+---
+- name: Seed snapshot_test table in yugabyte database
+  hosts: "{{ groups['tservers'][0] }}"
+  gather_facts: false
+  vars:
+    yb_install_dir: /opt/yugabyte
+    db_port: 5433
+  tasks:
+    - name: Seed snapshot_test table
+      ansible.builtin.command:
+        cmd: >-
+          {{ yb_install_dir }}/bin/ysqlsh -h 127.0.0.1 -p {{ db_port }}
+          -c "CREATE TABLE IF NOT EXISTS snapshot_test (id INT PRIMARY KEY, data TEXT);
+          INSERT INTO snapshot_test VALUES (1, 'seed') ON CONFLICT DO NOTHING;"
+      changed_when: false
+      register: _seed_result
+      retries: 18
+      delay: 10
+      until: _seed_result.rc == 0
+
+- name: Verify snapshot role
+  hosts: "{{ groups['masters'][0] }}"
+  become: false
+  gather_facts: false
+  vars:
+    yb_admin_path: /opt/yugabyte/bin/yb-admin
+    yb_snapshot_db: yugabyte
+    yb_install_dir: /opt/yugabyte
+    db_port: 5433
+    yb_master_addresses: "{{ groups['masters'] | map('extract', hostvars, 'ansible_host') | join(',') }}"
+  tasks:
+    - name: Run snapshot role
+      block:
+        - name: Include yb-snapshot role
+          ansible.builtin.include_role:
+            name: yb-snapshot
+
+        - name: Assert yb_snapshot_id was set
+          ansible.builtin.assert:
+            that:
+              - yb_snapshot_id is defined
+              - (yb_snapshot_id | default('')) | length > 0
+            fail_msg: "yb_snapshot_id was not set by the role"
+
+        - name: Verify snapshot exists in list_snapshots
+          ansible.builtin.command:
+            cmd: "{{ yb_admin_path }} -master_addresses {{ yb_master_addresses }} list_snapshots"
+          register: _snapshots_list
+          when: yb_snapshot_id is defined
+
+        - name: Assert snapshot ID is in the list
+          ansible.builtin.assert:
+            that: yb_snapshot_id in _snapshots_list.stdout
+            fail_msg: "Snapshot ID {{ yb_snapshot_id }} not found in list_snapshots output"
+          when: yb_snapshot_id is defined
+
+      rescue:
+        - name: Debug snapshot role failure
+          ansible.builtin.debug:
+            msg: "yb-snapshot role failed. Check role output above for details."
+
+        - name: Fail play on snapshot role failure
+          ansible.builtin.fail:
+            msg: "The yb-snapshot role execution failed. Failed task: {{ ansible_failed_task.name | default('unknown') }}. Error: {{ ansible_failed_result | default('none') }}"
+
+- name: Verify backup and restore roles
+  hosts: all
+  become: false
+  gather_facts: false
+  vars:
+    yb_install_dir: /opt/yugabyte
+    db_port: 5433
+    molecule_minio_host: "{{ groups['minio'][0] }}"
+    molecule_minio_cache_dir: "{{ (lookup('env', 'MOLECULE_PROJECT_DIRECTORY') | default(playbook_dir ~ '/../..', true)) }}/.cache/tools/minio"
+    molecule_minio_cache_path: "{{ molecule_minio_cache_dir }}/minio"
+    yb_backup_minio_endpoint: "http://{{ hostvars[molecule_minio_host]['ansible_host'] | default(molecule_minio_host) }}:9000"
+    yb_backup_minio_access_key: minioadmin
+    yb_backup_minio_secret_key: minioadmin
+    yb_backup_minio_bucket: yb-backups
+    yb_restore_source_hostname: "{{ groups['tservers'][0] }}"
+  tasks:
+    - name: Clear yb_snapshot_id fact
+      ansible.builtin.set_fact:
+        yb_snapshot_id: null
+
+    - block:
+        - name: Create Minio data directory
+          ansible.builtin.file:
+            path: /tmp/minio_data
+            state: directory
+            mode: "0755"
+          delegate_to: "{{ molecule_minio_host }}"
+          run_once: true
+          become: true
+
+        - name: Check if Minio exists on controller
+          ansible.builtin.stat:
+            path: /usr/local/bin/minio
+          delegate_to: localhost
+          run_once: true
+          register: _minio_local
+
+        - name: Create Minio cache directory on controller
+          ansible.builtin.file:
+            path: "{{ molecule_minio_cache_dir }}"
+            state: directory
+            mode: "0755"
+          delegate_to: localhost
+          run_once: true
+          when: not _minio_local.stat.exists
+
+        - name: Download Minio binary to controller cache
+          ansible.builtin.get_url:
+            url: https://dl.min.io/server/minio/release/linux-amd64/minio
+            dest: "{{ molecule_minio_cache_path }}"
+            mode: "0755"
+          delegate_to: localhost
+          run_once: true
+          when: not _minio_local.stat.exists
+
+        - name: Copy Minio binary from controller
+          ansible.builtin.copy:
+            src: "{{ _minio_local.stat.exists | ternary('/usr/local/bin/minio', molecule_minio_cache_path) }}"
+            dest: /usr/local/bin/minio
+            mode: "0755"
+          delegate_to: "{{ molecule_minio_host }}"
+          run_once: true
+          become: true
+
+        - name: Start Minio in the background
+          ansible.builtin.shell:
+            cmd: "pkill -x minio || true; nohup /usr/local/bin/minio server /tmp/minio_data --address ':9000' > /tmp/minio.log 2>&1 &"
+          delegate_to: "{{ molecule_minio_host }}"
+          run_once: true
+          become: true
+          changed_when: true
+
+        - name: Wait for Minio port 9000
+          block:
+            - name: Wait for Minio port 9000 (up to 90 seconds)
+              ansible.builtin.wait_for:
+                port: 9000
+                host: 127.0.0.1
+                timeout: 90
+              delegate_to: "{{ molecule_minio_host }}"
+              run_once: true
+          rescue:
+            - name: Check if Minio process is running
+              ansible.builtin.command: pgrep -a -x minio
+              delegate_to: "{{ molecule_minio_host }}"
+              run_once: true
+              become: true
+              register: _minio_pgrep
+              failed_when: false
+
+            - name: Retrieve Minio log on failure
+              ansible.builtin.command: cat /tmp/minio.log
+              delegate_to: "{{ molecule_minio_host }}"
+              run_once: true
+              become: true
+              register: _minio_log
+              failed_when: false
+
+            - name: Fail with detailed error message
+              ansible.builtin.fail:
+                msg: |
+                  Minio server failed to start or bind to port 9000 within 90 seconds.
+                  Process status (pgrep output): {{ _minio_pgrep.stdout | default('Not running') }}
+                  Last log lines from /tmp/minio.log:
+                  {{ _minio_log.stdout | default('No log output found') }}
+
+        - name: Seed test data for backup verification
+          ansible.builtin.command:
+            cmd: "{{ yb_install_dir }}/bin/ysqlsh -h 127.0.0.1 -p {{ db_port }} -c \"CREATE TABLE IF NOT EXISTS test_restore (id INT PRIMARY KEY, val TEXT); INSERT INTO test_restore VALUES (1, 'restore_verified') ON CONFLICT DO NOTHING;\""
+          delegate_to: "{{ groups['tservers'][0] }}"
+          run_once: true
+          changed_when: true
+
+        - name: Run backup role
+          ansible.builtin.include_role:
+            name: yb-backup
+          run_once: false
+
+        - name: Verify backup metadata exists in Minio
+          ansible.builtin.command: >
+            /usr/local/bin/s5cmd --endpoint-url {{ yb_backup_minio_endpoint }}
+            ls s3://{{ yb_backup_minio_bucket }}/{{ yb_snapshot_id }}/metadata/metadata.snapshot
+          environment:
+            AWS_ACCESS_KEY_ID: "{{ yb_backup_minio_access_key }}"
+            AWS_SECRET_ACCESS_KEY: "{{ yb_backup_minio_secret_key }}"
+          delegate_to: "{{ groups['masters'][0] }}"
+          run_once: true
+          changed_when: false
+
+        - name: Verify tablet data was uploaded
+          ansible.builtin.command: >
+            /usr/local/bin/s5cmd --endpoint-url {{ yb_backup_minio_endpoint }}
+            ls s3://{{ yb_backup_minio_bucket }}/{{ yb_snapshot_id }}/data/
+          environment:
+            AWS_ACCESS_KEY_ID: "{{ yb_backup_minio_access_key }}"
+            AWS_SECRET_ACCESS_KEY: "{{ yb_backup_minio_secret_key }}"
+          delegate_to: "{{ groups['masters'][0] }}"
+          run_once: true
+          register: _backup_objects
+          changed_when: false
+
+        - name: Assert backup contains tablet data
+          ansible.builtin.assert:
+            that:
+              - _backup_objects.stdout_lines | length > 0
+            fail_msg: "Backup did not upload tablet data for snapshot {{ yb_snapshot_id }}"
+          run_once: true
+
+        - name: Simulate data loss (Drop table)
+          ansible.builtin.command:
+            cmd: "{{ yb_install_dir }}/bin/ysqlsh -h 127.0.0.1 -p {{ db_port }} -c \"DROP TABLE test_restore;\""
+          delegate_to: "{{ groups['tservers'][0] }}"
+          run_once: true
+          changed_when: true
+
+        - name: Pre-create empty schema for restore
+          ansible.builtin.command:
+            cmd: "{{ yb_install_dir }}/bin/ysqlsh -h 127.0.0.1 -p {{ db_port }} -c \"CREATE TABLE test_restore (id INT PRIMARY KEY, val TEXT);\""
+          delegate_to: "{{ groups['tservers'][0] }}"
+          run_once: true
+          changed_when: true
+
+        - name: Run restore role
+          ansible.builtin.include_role:
+            name: yb-restore
+          run_once: false
+
+        - name: Verify data was successfully restored
+          ansible.builtin.command:
+            cmd: "{{ yb_install_dir }}/bin/ysqlsh -h 127.0.0.1 -p {{ db_port }} -t -c \"SELECT val FROM test_restore WHERE id = 1;\""
+          delegate_to: "{{ groups['tservers'][0] }}"
+          run_once: true
+          register: _restore_select
+          failed_when: "'restore_verified' not in _restore_select.stdout"
+
+      always:
+        - name: Stop Minio server
+          ansible.builtin.shell:
+            cmd: "pkill -x minio || true; rm -rf /tmp/minio_data"
+          delegate_to: "{{ molecule_minio_host }}"
+          run_once: true
+          become: true
+          changed_when: true
+          failed_when: false

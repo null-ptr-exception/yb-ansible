@@ -3,3 +3,5 @@ yb_install_dir: /opt/yugabyte
 yb_user: yugabyte
 yb_group: yugabyte
 
+s5cmd_controller_bin: "/usr/local/bin/s5cmd"
+s5cmd_version: "2.3.0"

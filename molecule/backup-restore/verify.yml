@@ -130,10 +130,17 @@
         - name: Start Minio in the background
           ansible.builtin.shell:
             cmd: "pkill -x minio || true; nohup /usr/local/bin/minio server /tmp/minio_data --address ':9000' > /tmp/minio.log 2>&1 &"
+          environment:
+            MINIO_ROOT_USER: minioadmin
+            MINIO_ROOT_PASSWORD: minioadmin
           delegate_to: "{{ molecule_minio_host }}"
           run_once: true
           become: true
           changed_when: true
+
+        - name: Pause to allow Minio to initialize
+          ansible.builtin.pause:
+            seconds: 2
 
         - name: Wait for Minio port 9000
           block:

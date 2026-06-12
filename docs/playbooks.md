@@ -4,22 +4,17 @@
 
 | Playbook | Purpose | Execution |
 |---|---|---|
-| `deploy.yml` | Day 1 fresh install, day 2 add tservers | Parallel |
-| `upgrade.yml` | Version upgrades and config changes | Rolling (serial: 1) |
-| `restart.yml` | Rolling restart without config changes | Rolling (serial: 1) |
-| `verify.yml` | Read-only health check | Parallel |
+| `playbooks/deploy.yml` | Day 1 fresh install, day 2 add tservers | Parallel |
+| `playbooks/upgrade.yml` | Version upgrades and config changes | Rolling (serial: 1) |
+| `playbooks/restart.yml` | Rolling restart without config changes | Rolling (serial: 1) |
+| `playbooks/verify.yml` | Read-only health check | Parallel |
+| `playbooks/xcluster.yml` | Setup xCluster replication between universes | Admin host |
+| `playbooks/snapshot.yml` | Create a distributed YSQL snapshot | Admin host |
+| `playbooks/backup.yml` | Backup a snapshot to an S3-compatible target | Mixed |
+| `playbooks/restore.yml` | Restore a backup from an S3-compatible target | Mixed |
+| `playbooks/clean.yml` | Stop services and wipe data dirs for redeploy | Parallel |
 
-## Authoring Rules
-
-- Use `ansible.builtin.*` FQCNs for builtin task plugins in playbooks and roles.
-- At minimum, always spell out `ansible.builtin.debug`, `ansible.builtin.set_fact`,
-  `ansible.builtin.command`, `ansible.builtin.fail`, and `ansible.builtin.import_tasks`.
-- Never hardcode systemd service names in verification playbooks; use the role
-  variables (`yb_master_service_name`, `yb_tserver_service_name`) so custom
-  service names remain verifiable.
-- Keep new playbook changes consistent with the existing FQCN style across this repo.
-
-## deploy.yml
+## playbooks/deploy.yml
 
 For initial deployment and safe day-2 additions. All plays run in parallel.
 
@@ -36,7 +31,7 @@ Pre-flight checks (localhost)
 ▼
 Common prerequisites (all nodes)
 │
-├─ common: create yugabyte user/group, install directory
+├─ common: create yugabyte user/group, install directory, ship s5cmd binary
 ├─ node-exporter: ship binary to nodes, symlink, start service
 └─ yb-build: ship tarball to nodes, extract, run post_install.sh
     │
@@ -76,7 +71,7 @@ Deploy tservers (tservers group)
 - Config changes on running nodes (requires rolling restart via `upgrade.yml`).
 - Version upgrades (requires rolling restart via `upgrade.yml`).
 
-## upgrade.yml
+## playbooks/upgrade.yml
 
 For version upgrades and config changes on existing nodes. Applies changes
 first, then triggers a rolling restart.
@@ -125,7 +120,7 @@ masters are restarted before tservers.
 - YugabyteDB version upgrades (new binary via `yb-build` role).
 - Configuration changes (gflags, ports) on existing masters and tservers.
 
-## restart.yml
+## playbooks/restart.yml
 
 Rolling restart of all YugabyteDB services without any config or version changes.
 Useful for recovering from issues or applying OS-level changes that require
@@ -158,7 +153,7 @@ fails, the playbook stops — remaining nodes are not restarted.
 - `--tags masters` — restart only masters
 - `--tags tservers` — restart only tservers
 
-## verify.yml
+## playbooks/verify.yml
 
 Read-only health check playbook. Makes no changes to any host.
 
@@ -194,10 +189,137 @@ Tservers
 ### Usage
 
 ```bash
-ansible-playbook -i inventory.ini verify.yml
+ansible-playbook -i inventory.ini playbooks/verify.yml
 ```
 
-## clean.yml
+## playbooks/xcluster.yml
+
+Configures asynchronous xCluster replication between two independent YugabyteDB
+universes.
+
+### Workflow
+
+```
+Admin host (`yb_admin_delegate_host` or first master)
+│
+├─ Build or use the stable replication ID (`xcluster_repl_id`)
+├─ Resolve source Table IDs for specified databases and optional table allowlists
+├─ Run setup_universe_replication on target cluster
+└─ Poll get_replication_status until status output is healthy and error-free
+```
+
+### Usage
+
+```bash
+ansible-playbook -i inventory.ini playbooks/xcluster.yml \
+  -e "xcluster_source_masters=10.0.0.1:7100,10.0.0.2:7100" \
+  -e "xcluster_target_masters=10.0.0.4:7100,10.0.0.5:7100" \
+  -e "xcluster_repl_id=prod_yugabyte_repl" \
+  -e '{"xcluster_databases": [{"name": "yugabyte", "type": "ysql", "tables": ["orders", "customers"]}]}'
+```
+
+If `xcluster_repl_id` is omitted, the role derives a stable ID from
+`xcluster_id_prefix` and the database names. Omit `tables` to replicate all
+non-system tables in a database.
+
+## playbooks/snapshot.yml
+
+Creates a distributed YSQL database snapshot.
+
+### Workflow
+
+```
+Admin host (`yb_admin_delegate_host` or first master)
+│
+├─ Create database snapshot via yb-admin
+├─ Extract Snapshot ID from output
+└─ Wait for snapshot state to reach COMPLETE
+```
+
+### Usage
+
+```bash
+ansible-playbook -i inventory.ini playbooks/snapshot.yml -e "yb_master_addresses=10.0.0.1:7100"
+```
+
+## playbooks/backup.yml
+
+Backs up a YSQL snapshot to an S3-compatible target (e.g., MinIO or AWS S3).
+Metadata is exported from the configured admin master, while tablet data is
+shipped directly from tservers to the target to avoid controller bottlenecks.
+
+### Workflow
+
+```
+Admin master (`yb_admin_delegate_host`)
+│
+├─ Create fresh database snapshot (imports yb-snapshot)
+├─ Export snapshot metadata to temp directory
+└─ Upload metadata to S3-compatible target
+│
+▼
+Tservers (parallel)
+│
+├─ Find snapshot directories on local disk
+└─ Upload tablet data directly to S3-compatible target
+```
+
+Backups are stored under `s3://<yb_backup_minio_bucket>/<yb_snapshot_id>/`.
+The metadata object is `metadata/metadata.snapshot`; tablet data is stored
+under `data/<tserver-hostname>/`.
+
+### Usage
+
+```bash
+ansible-playbook playbooks/backup.yml \
+  -e "yb_master_addresses=10.0.0.1:7100" \
+  -e "yb_backup_minio_endpoint=http://minio:9000" \
+  -e "yb_backup_minio_access_key=minioadmin" \
+  -e "yb_backup_minio_secret_key=minioadmin" \
+  -e "yb_backup_minio_bucket=yb-backups"
+```
+
+## playbooks/restore.yml
+
+Restores a YSQL backup from an S3-compatible target to a YugabyteDB cluster.
+Handles metadata import and coordinate data relocation on tservers.
+
+### Workflow
+
+```
+Admin master (`yb_admin_delegate_host`)
+│
+├─ Download metadata from S3-compatible target
+├─ Import snapshot into target cluster
+└─ Extract ID and table/tablet mappings
+│
+▼
+Tservers (parallel)
+│
+├─ Mirror data from S3-compatible target to temp directory
+└─ Relocate data to final tablet snapshot directories (mapping applied)
+│
+▼
+Admin master (`yb_admin_delegate_host`)
+│
+└─ Restore snapshot via yb-admin
+```
+
+### Usage
+
+```bash
+ansible-playbook playbooks/restore.yml \
+  -e "yb_master_addresses=10.0.0.4:7100" \
+  -e "yb_snapshot_id=<source-snapshot-id>" \
+  -e "yb_restore_source_hostname=<source-tserver-hostname>" \
+  -e "yb_backup_minio_endpoint=http://minio:9000" \
+  -e "yb_backup_minio_access_key=minioadmin" \
+  -e "yb_backup_minio_secret_key=minioadmin" \
+  -e "yb_backup_minio_bucket=yb-backups" \
+  -e "yb_tserver_data_dir=/data/yugabyte/tserver"
+```
+
+## playbooks/clean.yml
 
 Stops all YugabyteDB and node-exporter services, removes systemd units, and
 wipes data directories. Install directories and packages are preserved for
@@ -218,15 +340,15 @@ All nodes (parallel)
 ### Usage
 
 ```bash
-ansible-playbook -i inventory.ini clean.yml
+ansible-playbook -i inventory.ini playbooks/clean.yml
 ```
 
-After clean, run `deploy.yml` to redeploy. Packages and binaries are still
+After clean, run `playbooks/deploy.yml` to redeploy. Packages and binaries are still
 in place, so no image pull or file transfer is needed.
 
 ## Future Playbooks
 
 | Playbook | Purpose |
 |---|---|
-| `replace-master.yml` | Replace a failed master node at a different IP using `yb-admin change_master_config` |
-| `decommission-tserver.yml` | Safely remove tserver nodes by draining tablets first |
+| `playbooks/replace-master.yml` | Replace a failed master node at a different IP using `yb-admin change_master_config` |
+| `playbooks/decommission-tserver.yml` | Safely remove tserver nodes by draining tablets first |

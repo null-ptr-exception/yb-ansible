@@ -53,7 +53,6 @@
     - yb_restore_source == 'minio'
     - inventory_hostname in groups['tservers']
   changed_when: true
-  no_log: false
 
 - name: Import snapshot into target cluster
   ansible.builtin.command: >

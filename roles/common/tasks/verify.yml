@@ -1,7 +1,7 @@
 ---
 - name: Verify s5cmd binary exists on controller
   ansible.builtin.stat:
-    path: "{{ hostvars['localhost']['s5cmd_controller_bin'] | default(s5cmd_controller_bin) }}"
+    path: "{{ s5cmd_controller_bin }}"
   register: _s5cmd_binary
   delegate_to: localhost
   run_once: true
@@ -11,7 +11,7 @@
     that:
       - _s5cmd_binary.stat.exists
       - _s5cmd_binary.stat.executable | default(false)
-    fail_msg: "s5cmd binary is missing or not executable at {{ hostvars['localhost']['s5cmd_controller_bin'] | default(s5cmd_controller_bin) }}"
+    fail_msg: "s5cmd binary is missing or not executable at {{ s5cmd_controller_bin }}"
   delegate_to: localhost
   run_once: true
 

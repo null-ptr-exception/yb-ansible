@@ -8,7 +8,7 @@
     - name: Run create_database_snapshot
       ansible.builtin.command: >
         {{ yb_admin_path }} -master_addresses {{ yb_master_addresses }}
-        create_database_snapshot {{ yb_snapshot_db }}
+        create_database_snapshot ysql.{{ yb_snapshot_db }}
       register: create_output
       retries: 3
       delay: 10
@@ -35,7 +35,7 @@
 
     - name: Fail with clear message
       ansible.builtin.fail:
-        msg: "create_database_snapshot {{ yb_snapshot_db }} failed. See debug output above."
+        msg: "create_database_snapshot ysql.{{ yb_snapshot_db }} failed. See debug output above."
 
 - name: Print Snapshot ID
   ansible.builtin.debug:

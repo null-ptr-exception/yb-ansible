@@ -1,0 +1,8 @@
+# restore.yml
+---
+- name: Restore YugabyteDB Backup
+  hosts: all
+  become: true
+  roles:
+    - common
+    - yb-restore

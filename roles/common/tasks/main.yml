@@ -20,3 +20,62 @@
     owner: "{{ yb_user }}"
     group: "{{ yb_group }}"
     mode: "0755"
+
+- name: Ensure s5cmd is available on controller
+  delegate_to: localhost
+  run_once: true
+  become: false
+  block:
+    - name: Check if s5cmd exists at default system path on controller
+      ansible.builtin.stat:
+        path: "/usr/local/bin/s5cmd"
+      register: _s5cmd_system
+
+    - name: Set up local cache for s5cmd if system path is not available
+      when: not (_s5cmd_system.stat.exists and (_s5cmd_system.stat.executable | default(false)))
+      block:
+        - name: Create local cache directory on controller
+          ansible.builtin.file:
+            path: "{{ s5cmd_package_cache_dir }}"
+            state: directory
+            mode: "0755"
+
+        - name: Check if s5cmd is cached on controller
+          ansible.builtin.stat:
+            path: "{{ s5cmd_package_cache_dir }}/s5cmd"
+          register: _s5cmd_cached
+
+        - name: Download and extract s5cmd on controller
+          ansible.builtin.unarchive:
+            src: "https://github.com/peak/s5cmd/releases/download/v{{ s5cmd_version }}/s5cmd_{{ s5cmd_version }}_Linux-64bit.tar.gz"
+            dest: "{{ s5cmd_package_cache_dir }}"
+            remote_src: true
+            include:
+              - s5cmd
+          when: not _s5cmd_cached.stat.exists
+
+        - name: Ensure cached s5cmd has correct permissions on controller
+          ansible.builtin.file:
+            path: "{{ s5cmd_package_cache_dir }}/s5cmd"
+            mode: "0755"
+
+    - name: Set s5cmd controller binary path fact on controller
+      ansible.builtin.set_fact:
+        s5cmd_controller_bin: "{{ (_s5cmd_system.stat.exists and (_s5cmd_system.stat.executable | default(false))) | ternary('/usr/local/bin/s5cmd', s5cmd_package_cache_dir ~ '/s5cmd') }}"
+      delegate_facts: true
+
+    - name: Share s5cmd controller binary path with all hosts
+      ansible.builtin.set_fact:
+        s5cmd_controller_bin: "{{ hostvars['localhost']['s5cmd_controller_bin'] }}"
+      delegate_to: "{{ item }}"
+      delegate_facts: true
+      loop: "{{ ansible_play_hosts_all }}"
+      run_once: true
+
+- name: Ship s5cmd binary to nodes
+  ansible.builtin.copy:
+    src: "{{ s5cmd_controller_bin }}"
+    dest: "/usr/local/bin/s5cmd"
+    owner: root
+    group: root
+    mode: "0755"

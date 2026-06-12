@@ -1,0 +1,94 @@
+---
+- name: Check if backup bucket exists
+  ansible.builtin.command: "/usr/local/bin/s5cmd --endpoint-url {{ yb_backup_minio_endpoint }} ls s3://{{ yb_backup_minio_bucket }}"
+  environment:
+    AWS_ACCESS_KEY_ID: "{{ yb_backup_minio_access_key }}"
+    AWS_SECRET_ACCESS_KEY: "{{ yb_backup_minio_secret_key }}"
+  register: _bucket_check
+  failed_when: false
+  changed_when: false
+  delegate_to: "{{ yb_admin_delegate_host }}"
+  run_once: true
+  no_log: "{{ ansible_verbosity < 3 }}"
+
+- name: Create backup bucket if missing
+  ansible.builtin.command: "/usr/local/bin/s5cmd --endpoint-url {{ yb_backup_minio_endpoint }} mb s3://{{ yb_backup_minio_bucket }}"
+  environment:
+    AWS_ACCESS_KEY_ID: "{{ yb_backup_minio_access_key }}"
+    AWS_SECRET_ACCESS_KEY: "{{ yb_backup_minio_secret_key }}"
+  when: _bucket_check.rc != 0
+  changed_when: true
+  delegate_to: "{{ yb_admin_delegate_host }}"
+  run_once: true
+  no_log: "{{ ansible_verbosity < 3 }}"
+
+- name: Create fresh database snapshot
+  block:
+    - ansible.builtin.include_role:
+        name: yb-snapshot
+  delegate_to: "{{ yb_admin_delegate_host }}"
+  run_once: true
+  when: yb_snapshot_id is undefined or yb_snapshot_id is none or yb_snapshot_id == ""
+
+- name: Share snapshot ID with all hosts
+  ansible.builtin.set_fact:
+    yb_snapshot_id: "{{ ansible_play_hosts | map('extract', hostvars, 'yb_snapshot_id') | select('defined') | reject('none') | reject('equalto', '') | first }}"
+  when: yb_snapshot_id is undefined or yb_snapshot_id is none or yb_snapshot_id == ""
+
+- name: Create temp metadata directory
+  ansible.builtin.file:
+    path: "/tmp/yb_backup_metadata/{{ yb_snapshot_id }}"
+    state: directory
+    mode: "0755"
+  delegate_to: "{{ yb_admin_delegate_host }}"
+  run_once: true
+
+- name: Export snapshot metadata
+  ansible.builtin.command: >
+    {{ yb_admin_path }} -master_addresses {{ yb_master_addresses }}
+    export_snapshot {{ yb_snapshot_id }} /tmp/yb_backup_metadata/{{ yb_snapshot_id }}/metadata.snapshot
+  delegate_to: "{{ yb_admin_delegate_host }}"
+  run_once: true
+  changed_when: true
+
+- name: Upload metadata to Minio
+  ansible.builtin.command: >
+    /usr/local/bin/s5cmd --endpoint-url {{ yb_backup_minio_endpoint }} cp
+    /tmp/yb_backup_metadata/{{ yb_snapshot_id }}/metadata.snapshot
+    s3://{{ yb_backup_minio_bucket }}/{{ yb_snapshot_id }}/metadata/metadata.snapshot
+  environment:
+    AWS_ACCESS_KEY_ID: "{{ yb_backup_minio_access_key }}"
+    AWS_SECRET_ACCESS_KEY: "{{ yb_backup_minio_secret_key }}"
+  delegate_to: "{{ yb_admin_delegate_host }}"
+  run_once: true
+  changed_when: true
+  no_log: "{{ ansible_verbosity < 3 }}"
+
+- name: Find snapshot directories on TServer
+  ansible.builtin.command: >
+    find {{ yb_tserver_data_dir }} -type d -name "{{ yb_snapshot_id }}"
+  register: snapshot_dirs
+  become: true
+  changed_when: false
+  when: inventory_hostname in groups['tservers']
+
+- name: Upload tablet data from TServers
+  ansible.builtin.command: >
+    /usr/local/bin/s5cmd --endpoint-url {{ yb_backup_minio_endpoint }} cp
+    {{ item }}/
+    s3://{{ yb_backup_minio_bucket }}/{{ yb_snapshot_id }}/data/{{ inventory_hostname }}/{{ item | relpath(yb_tserver_data_dir) }}/
+  environment:
+    AWS_ACCESS_KEY_ID: "{{ yb_backup_minio_access_key }}"
+    AWS_SECRET_ACCESS_KEY: "{{ yb_backup_minio_secret_key }}"
+  loop: "{{ snapshot_dirs.stdout_lines | default([]) }}"
+  become: true
+  when: inventory_hostname in groups['tservers'] and snapshot_dirs.stdout_lines | length > 0
+  changed_when: true
+  no_log: "{{ ansible_verbosity < 3 }}"
+
+- name: Remove temp metadata directory
+  ansible.builtin.file:
+    path: "/tmp/yb_backup_metadata"
+    state: absent
+  delegate_to: "{{ yb_admin_delegate_host }}"
+  run_once: true

@@ -1,0 +1,7 @@
+---
+# roles/yb-snapshot/defaults/main.yml
+yb_master_addresses: "{{ groups['masters'] | map('extract', hostvars, 'ansible_host') | join(',') }}"
+yb_admin_path: "/opt/yugabyte/bin/yb-admin"
+yb_snapshot_db: "yugabyte"
+yb_snapshot_timeout: 600
+yb_snapshot_poll_interval: 5

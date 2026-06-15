@@ -44,6 +44,7 @@ assert_contains .github/workflows/build-shipper.yml 'tags: \${{ env\.REGISTRY }}
 # shellcheck disable=SC2016
 assert_contains shipper/build.sh 'IMAGE="\${3:-yb-shipper:\${YB_VERSION}-\${YB_BUILD}}"'
 assert_contains molecule/default/create.yml 'CentOS-Stream-GenericCloud-8-latest\.x86_64\.qcow2'
+assert_contains molecule/default/create.yml 'MOLECULE_VM_DIR'
 assert_contains molecule/default/create.yml '^[[:space:]]*molecule_ssh_user:[[:space:]]+cloud-user[[:space:]]*$'
 assert_contains molecule/default/create.yml '^[[:space:]]*molecule_snapshot_name:[[:space:]]+clean-base-centos-stream8[[:space:]]*$'
 assert_contains molecule/default/create.yml "lookup\\('file', ssh_identity_file ~ '\\.pub', errors='ignore'\\)"

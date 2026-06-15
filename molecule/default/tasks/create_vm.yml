@@ -18,9 +18,9 @@
   ansible.builtin.set_fact:
     _has_snapshot: >-
       {{ _vm_state.rc == 0
-         and 'clean-base' in (_vm_snapshots.stdout_lines | default([])) }}
+         and molecule_snapshot_name in (_vm_snapshots.stdout_lines | default([])) }}
 
-- name: "Revert {{ vm_prefix }}-{{ platform.name }} to clean-base snapshot"
+- name: "Revert {{ vm_prefix }}-{{ platform.name }} to clean base snapshot"
   when: _has_snapshot | bool
   block:
     - name: Force off VM before revert
@@ -31,7 +31,7 @@
 
     - name: Revert to clean-base snapshot
       ansible.builtin.command:
-        cmd: "virsh snapshot-revert {{ vm_prefix }}-{{ platform.name }} clean-base"
+        cmd: "virsh snapshot-revert {{ vm_prefix }}-{{ platform.name }} {{ molecule_snapshot_name }}"
 
     - name: Start VM from snapshot
       ansible.builtin.command:
@@ -49,10 +49,9 @@
   when:
     - not (_has_snapshot | bool)
     - _vm_state.rc == 0
-    - "'running' not in _vm_state.stdout"
 
 - name: "Create {{ vm_prefix }}-{{ platform.name }}"
-  when: not (_has_snapshot | bool) and (_vm_state.rc != 0 or 'running' not in _vm_state.stdout)
+  when: not (_has_snapshot | bool)
   block:
     - name: Create disk from base image
       ansible.builtin.command:
@@ -77,11 +76,17 @@
           hostname: {{ vm_prefix }}-{{ platform.name }}
           manage_etc_hosts: true
           runcmd:
-            - sed -i 's/^mirrorlist=/#mirrorlist=/g' /etc/yum.repos.d/CentOS-*.repo
-            - sed -i 's|^#baseurl=http://mirror.centos.org|baseurl=http://vault.centos.org|g' /etc/yum.repos.d/CentOS-*.repo
-            - yum install -y python3 openssh-server
+            - dnf install -y python3 openssh-server
+            - systemctl enable --now sshd
+            - setenforce 0 || true
+            - sed -i 's/^SELINUX=enforcing/SELINUX=permissive/g' /etc/selinux/config
+            - dd if=/dev/zero of=/swapfile bs=1M count=2048
+            - chmod 600 /swapfile
+            - mkswap /swapfile
+            - swapon /swapfile
+            - echo "/swapfile none swap sw 0 0" >> /etc/fstab
           users:
-            - name: centos
+            - name: "{{ molecule_ssh_user }}"
               sudo: ALL=(ALL) NOPASSWD:ALL
               shell: /bin/bash
               ssh_authorized_keys:
@@ -117,7 +122,7 @@
           --memory {{ platform.ram_mb | default(1024) }}
           --disk path={{ vm_dir }}/{{ vm_prefix }}-{{ platform.name }}.qcow2,format=qcow2,bus=virtio,cache=none,io=native
           --disk path={{ vm_dir }}/{{ vm_prefix }}-{{ platform.name }}-cidata.iso,device=cdrom
-          --os-variant centos7.0
+          --os-variant centos-stream8
           --network network=default
           --graphics none
           --noautoconsole

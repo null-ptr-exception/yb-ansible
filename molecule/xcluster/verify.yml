@@ -1,0 +1,36 @@
+---
+- name: Verify xCluster Replication
+  hosts: all
+  vars:
+    xcluster_id_prefix: "repl"
+    xcluster_databases:
+      - name: yugabyte
+        type: ysql
+        tables:
+          - test_table
+    xcluster_repl_id: "{{ xcluster_id_prefix }}_{{ (xcluster_databases | map(attribute='name') | list | join('_') | hash('md5'))[:8] }}"
+  tasks:
+    - name: Upsert data into Source
+      ansible.builtin.command: >
+        /opt/yugabyte/bin/ysqlsh -h {{ ansible_host }} -p 5433
+        -c "INSERT INTO test_table VALUES (1, 'replicated')
+            ON CONFLICT (id) DO UPDATE SET val = EXCLUDED.val;"
+      changed_when: false
+
+    - name: Verify data on Target
+      ansible.builtin.command: >
+        /opt/yugabyte/bin/ysqlsh -h {{ ansible_host }} -p 5434 -t -c "SELECT val FROM test_table WHERE id = 1;"
+      register: _target_val
+      until: "'replicated' in _target_val.stdout"
+      retries: 30
+      delay: 1
+      changed_when: false
+
+    - name: Verify replication status is healthy
+      ansible.builtin.command: >
+        /opt/yugabyte/bin/yb-admin -master_addresses {{ ansible_host }}:7101
+        get_replication_status {{ xcluster_repl_id }}
+      register: _rep_status
+      failed_when:
+        - _rep_status.rc != 0 or 'statuses' not in _rep_status.stdout or 'error:' in _rep_status.stdout
+      changed_when: false

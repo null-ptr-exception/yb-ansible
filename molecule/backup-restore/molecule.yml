@@ -1,0 +1,53 @@
+---
+driver:
+  name: default
+platforms:
+  - name: master-1
+    groups:
+      - masters
+    vcpus: 1
+    ram_mb: 1024
+    disk_gb: 10
+  - name: master-2
+    groups:
+      - masters
+    vcpus: 1
+    ram_mb: 1024
+    disk_gb: 10
+  - name: master-3
+    groups:
+      - masters
+    vcpus: 1
+    ram_mb: 1024
+    disk_gb: 10
+  - name: tserver-1
+    groups:
+      - tservers
+    vcpus: 2
+    ram_mb: 1024
+    disk_gb: 20
+  - name: minio-1
+    groups:
+      - minio
+    vcpus: 1
+    ram_mb: 1024
+    disk_gb: 10
+provisioner:
+  name: ansible
+  inventory:
+    group_vars:
+      all:
+        ansible_user: cloud-user
+        ansible_python_interpreter: /usr/libexec/platform-python
+        yb_shipper_registry: ${MOLECULE_YB_SHIPPER_REGISTRY:-ghcr.io}
+        node_exporter_registry: ${MOLECULE_NODE_EXPORTER_REGISTRY:-docker.io}
+        crane_insecure: ${MOLECULE_CRANE_INSECURE:-false}
+        yb_replication_factor: 1
+  env:
+    LIBVIRT_DEFAULT_URI: ${LIBVIRT_DEFAULT_URI:-qemu:///system}
+    ANSIBLE_ROLES_PATH: ${MOLECULE_PROJECT_DIRECTORY}/roles
+  config_options:
+    ssh_connection:
+      ssh_args: -o UserKnownHostsFile=${MOLECULE_PROJECT_DIRECTORY}/.vms/known_hosts
+verifier:
+  name: ansible

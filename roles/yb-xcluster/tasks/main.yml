@@ -1,0 +1,46 @@
+---
+# roles/yb-xcluster/tasks/main.yml
+- name: Debug replication ID
+  ansible.builtin.debug:
+    var: xcluster_repl_id
+
+- name: Resolve Table IDs
+  ansible.builtin.import_tasks: resolve_table_ids.yml
+
+- name: Setup xCluster replication
+  ansible.builtin.command: >
+    {{ yb_admin_path }} -master_addresses {{ xcluster_target_masters }}
+    -yb_client_admin_operation_timeout_sec {{ xcluster_admin_timeout | default(120) }}
+    setup_universe_replication {{ xcluster_repl_id }}
+    {{ xcluster_source_masters }} {{ xcluster_table_ids }} transactional
+  register: setup_output
+  failed_when:
+    - setup_output.rc != 0
+    - "'already exists' not in setup_output.stderr"
+    - "'already exists' not in setup_output.stdout"
+    - "'already present' not in setup_output.stderr"
+    - "'already present' not in setup_output.stdout"
+  changed_when:
+    - "'already exists' not in setup_output.stderr"
+    - "'already exists' not in setup_output.stdout"
+    - "'already present' not in setup_output.stderr"
+    - "'already present' not in setup_output.stdout"
+
+- name: Wait for replication to become ACTIVE
+  ansible.builtin.command: >
+    {{ yb_admin_path }} -master_addresses {{ xcluster_target_masters }}
+    get_replication_status {{ xcluster_repl_id }}
+  register: repl_status
+  until:
+    - repl_status.rc == 0
+    - "'statuses' in repl_status.stdout"
+    - "'error:' not in repl_status.stdout"
+  retries: "{{ (xcluster_wait_timeout / 5) | int }}"
+  delay: 5
+  when: xcluster_wait_for_active
+  changed_when: false
+
+- name: Final replication status
+  ansible.builtin.debug:
+    msg: "Replication {{ xcluster_repl_id }} is healthy."
+  when: xcluster_wait_for_active

@@ -1,0 +1,35 @@
+---
+- name: List tables on source cluster to get IDs
+  ansible.builtin.command: >
+    {{ yb_admin_path }} -master_addresses {{ xcluster_source_masters }}
+    list_tables include_table_id
+  register: yb_tables_raw
+  changed_when: false
+
+- name: Parse table IDs for specified databases
+  ansible.builtin.set_fact:
+    xcluster_table_ids: >-
+      {%- set ids = [] -%}
+      {%- for db in xcluster_databases -%}
+        {%- for line in yb_tables_raw.stdout_lines -%}
+          {%- if line.startswith(db.name ~ '.') -%}
+            {%- set table_name = (line.split(' ') | first).split('.', 1) | last -%}
+            {%- set table_allowed = db.tables is not defined or table_name in db.tables -%}
+            {%- set system_schema = db.type == 'ysql' and ('[ysql_schema=pg_catalog]' in line or '[ysql_schema=information_schema]' in line) -%}
+            {%- if table_allowed and not system_schema -%}
+              {%- set table_id = line.split(' ') | last -%}
+              {%- set _ = ids.append(table_id) -%}
+            {%- endif -%}
+          {%- endif -%}
+        {%- endfor -%}
+      {%- endfor -%}
+      {{ ids | join(',') }}
+
+- name: Fail if no tables were found
+  ansible.builtin.fail:
+    msg: "No tables found for databases: {{ xcluster_databases | map(attribute='name') | list | join(', ') }}"
+  when: not xcluster_table_ids
+
+- name: Debug resolved table IDs
+  ansible.builtin.debug:
+    var: xcluster_table_ids

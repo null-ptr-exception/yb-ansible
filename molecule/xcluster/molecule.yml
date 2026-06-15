@@ -1,0 +1,32 @@
+---
+dependency:
+  name: galaxy
+driver:
+  name: default
+platforms:
+  - name: yb-node
+    groups:
+      - masters
+      - tservers
+    vcpus: 2
+    ram_mb: 4096
+    disk_gb: 20
+provisioner:
+  name: ansible
+  inventory:
+    group_vars:
+      all:
+        ansible_user: cloud-user
+        ansible_python_interpreter: /usr/libexec/platform-python
+        yb_shipper_registry: ${MOLECULE_YB_SHIPPER_REGISTRY:-ghcr.io}
+        crane_insecure: ${MOLECULE_CRANE_INSECURE:-false}
+        yb_allow_config_change: true
+  env:
+    LIBVIRT_DEFAULT_URI: ${LIBVIRT_DEFAULT_URI:-qemu:///system}
+  config_options:
+    defaults:
+      roles_path: ${MOLECULE_PROJECT_DIRECTORY}/roles
+    ssh_connection:
+      ssh_args: -o UserKnownHostsFile=${MOLECULE_PROJECT_DIRECTORY}/.vms/known_hosts
+verifier:
+  name: ansible

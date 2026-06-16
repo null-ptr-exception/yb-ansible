@@ -48,6 +48,6 @@ provisioner:
     ANSIBLE_ROLES_PATH: ${MOLECULE_PROJECT_DIRECTORY}/roles
   config_options:
     ssh_connection:
-      ssh_args: -o UserKnownHostsFile=${MOLECULE_PROJECT_DIRECTORY}/.vms/known_hosts
+      ssh_args: -o UserKnownHostsFile=${MOLECULE_VM_DIR:-.vms}/known_hosts
 verifier:
   name: ansible

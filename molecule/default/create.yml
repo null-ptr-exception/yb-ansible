@@ -5,20 +5,27 @@
   gather_facts: false
   vars:
     vm_prefix: yb-ansible
-    vm_dir: "{{ lookup('env', 'MOLECULE_PROJECT_DIRECTORY') }}/.vms"
+    vm_dir: "{{ lookup('env', 'MOLECULE_VM_DIR') | default(lookup('env', 'MOLECULE_PROJECT_DIRECTORY') ~ '/.vms', true) }}"
     base_img: "{{ vm_dir }}/CentOS-Stream-GenericCloud-8-latest.x86_64.qcow2"
     base_img_url: https://cloud.centos.org/centos/8-stream/x86_64/images/CentOS-Stream-GenericCloud-8-latest.x86_64.qcow2
     molecule_ssh_user: cloud-user
     molecule_snapshot_name: clean-base-centos-stream8
     ssh_identity_file: "{{ lookup('env', 'MOLECULE_SSH_IDENTITY_FILE') | default(lookup('env', 'HOME') ~ '/.ssh/id_ed25519', true) }}"
     ssh_pub_key_env: "{{ lookup('env', 'MOLECULE_SSH_PUB_KEY') | default('', true) }}"
-    ssh_pub_key: "{{ ssh_pub_key_env if ssh_pub_key_env | length > 0 else lookup('file', ssh_identity_file ~ '.pub') }}"
+    ssh_pub_key: "{{ ssh_pub_key_env if ssh_pub_key_env | length > 0 else lookup('file', ssh_identity_file ~ '.pub', errors='ignore') }}"
   tasks:
     - name: Create VM directory
       ansible.builtin.file:
         path: "{{ vm_dir }}"
         state: directory
         mode: "0755"
+
+    - name: Fail if Molecule SSH public key is unavailable
+      ansible.builtin.fail:
+        msg: >-
+          Set MOLECULE_SSH_PUB_KEY or create {{ ssh_identity_file }}.pub so
+          cloud-init can authorize {{ molecule_ssh_user }}.
+      when: ssh_pub_key | trim | length == 0
 
     - name: Check if get-cloud-image is available
       ansible.builtin.command:

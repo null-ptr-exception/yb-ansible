@@ -6,9 +6,11 @@ on:
       yb_version:
         description: "YugabyteDB version (e.g. 2025.2.2.2)"
         required: true
+        default: "2025.2.3.2"
       yb_build:
         description: "Build number (e.g. b11)"
         required: true
+        default: "b1"
 
 env:
   REGISTRY: ghcr.io

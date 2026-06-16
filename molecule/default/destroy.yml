@@ -5,7 +5,7 @@
   gather_facts: false
   vars:
     vm_prefix: yb-ansible
-    vm_dir: "{{ lookup('env', 'MOLECULE_PROJECT_DIRECTORY') }}/.vms"
+    vm_dir: "{{ lookup('env', 'MOLECULE_VM_DIR') | default(lookup('env', 'MOLECULE_PROJECT_DIRECTORY') ~ '/.vms', true) }}"
     molecule_full_destroy: "{{ lookup('env', 'MOLECULE_FULL_DESTROY') | default(false, true) }}"
   tasks:
     - name: Shut down VMs (preserving snapshots)

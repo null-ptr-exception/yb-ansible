@@ -45,11 +45,19 @@
             path: "{{ s5cmd_package_cache_dir }}/s5cmd"
           register: _s5cmd_cached
 
-        - name: Download and extract s5cmd on controller
+        - name: Download s5cmd archive on controller
+          ansible.builtin.get_url:
+            url: "https://github.com/peak/s5cmd/releases/download/v{{ s5cmd_version }}/s5cmd_{{ s5cmd_version }}_Linux-64bit.tar.gz"
+            dest: "{{ s5cmd_package_cache_dir }}/s5cmd_{{ s5cmd_version }}_Linux-64bit.tar.gz"
+            checksum: "{{ s5cmd_checksum }}"
+            mode: "0644"
+          when: not _s5cmd_cached.stat.exists
+
+        - name: Extract s5cmd on controller
           ansible.builtin.unarchive:
-            src: "https://github.com/peak/s5cmd/releases/download/v{{ s5cmd_version }}/s5cmd_{{ s5cmd_version }}_Linux-64bit.tar.gz"
+            src: "{{ s5cmd_package_cache_dir }}/s5cmd_{{ s5cmd_version }}_Linux-64bit.tar.gz"
             dest: "{{ s5cmd_package_cache_dir }}"
-            remote_src: true
+            remote_src: false
             include:
               - s5cmd
           when: not _s5cmd_cached.stat.exists

@@ -4,6 +4,12 @@ set -euo pipefail
 # Global to track snapshot ID for cleanup
 SNAPSHOT_ID=""
 
+if command -v docker-compose >/dev/null 2>&1; then
+    DC=docker-compose
+else
+    DC='docker compose'
+fi
+
 cleanup() {
     echo "===> Cleaning up test resources..."
     # Drop tables
@@ -19,7 +25,7 @@ trap cleanup EXIT
 
 echo "===> Checking environment..."
 REQUIRED_SERVICES=("source-master" "source-tserver" "target-master" "target-tserver" "ansible-controller" "minio")
-RUNNING_SERVICES=$(docker-compose ps --services --filter "status=running")
+RUNNING_SERVICES=$($DC ps --services --filter "status=running")
 
 MISSING_SERVICES=()
 for service in "${REQUIRED_SERVICES[@]}"; do
@@ -41,6 +47,7 @@ echo "===> Testing backup error path (invalid snapshot ID)..."
 if docker exec ansible-controller ansible-playbook -i inventory.docker.ini playbooks/backup.yml \
   --limit source-master,source-tserver \
   -e "yb_master_addresses=source-master:7100" \
+  -e "yb_admin_path=/home/yugabyte/bin/yb-admin" \
   -e "yb_snapshot_id=00000000-0000-0000-0000-000000000000" \
   -e "yb_backup_minio_endpoint=http://minio:9000" \
   -e "yb_backup_minio_access_key=minioadmin" \
@@ -57,6 +64,7 @@ echo "===> Testing backup error path (unreachable Minio)..."
 if docker exec ansible-controller ansible-playbook -i inventory.docker.ini playbooks/backup.yml \
   --limit source-master,source-tserver \
   -e "yb_master_addresses=source-master:7100" \
+  -e "yb_admin_path=/home/yugabyte/bin/yb-admin" \
   -e "yb_snapshot_id=00000000-0000-0000-0000-000000000000" \
   -e "yb_backup_minio_endpoint=http://localhost:9999" \
   -e "yb_backup_minio_access_key=minioadmin" \
@@ -80,7 +88,9 @@ EXPECTED_VAL=$(docker exec source-tserver /home/yugabyte/bin/ysqlsh -h source-ts
 echo "Seed data: $EXPECTED_VAL"
 
 echo "===> Creating snapshot on source..."
-SNAPSHOT_OUT=$(docker exec ansible-controller ansible-playbook -i inventory.docker.ini playbooks/snapshot.yml -e "yb_master_addresses=source-master:7100")
+SNAPSHOT_OUT=$(docker exec ansible-controller ansible-playbook -i inventory.docker.ini playbooks/snapshot.yml \
+  -e "yb_master_addresses=source-master:7100" \
+  -e "yb_admin_path=/home/yugabyte/bin/yb-admin")
 SNAPSHOT_ID=$(echo "$SNAPSHOT_OUT" | grep -oP 'Snapshot ID: \K[a-f0-9-]+' | head -1)
 echo "Snapshot ID: $SNAPSHOT_ID"
 
@@ -88,6 +98,7 @@ echo "===> Backing up source to Minio..."
 docker exec ansible-controller ansible-playbook -i inventory.docker.ini playbooks/backup.yml \
   --limit source-master,source-tserver \
   -e "yb_master_addresses=source-master:7100" \
+  -e "yb_admin_path=/home/yugabyte/bin/yb-admin" \
   -e "yb_snapshot_id=$SNAPSHOT_ID" \
   -e "yb_backup_minio_endpoint=http://minio:9000" \
   -e "yb_backup_minio_access_key=minioadmin" \
@@ -104,6 +115,7 @@ echo "===> Restoring to target cluster..."
 docker exec ansible-controller ansible-playbook -i inventory.docker.ini playbooks/restore.yml \
   --limit target-master,target-tserver \
   -e "yb_master_addresses=target-master:7100" \
+  -e "yb_admin_path=/home/yugabyte/bin/yb-admin" \
   -e "yb_snapshot_id=$SNAPSHOT_ID" \
   -e "yb_restore_source_hostname=source-tserver" \
   -e "yb_restore_source=minio" \

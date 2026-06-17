@@ -6,3 +6,4 @@ yb_group: yugabyte
 s5cmd_controller_bin: "/usr/local/bin/s5cmd"
 s5cmd_package_cache_dir: "/tmp/yb_package_cache/s5cmd"
 s5cmd_version: "2.3.0"
+s5cmd_checksum: "sha256:de0fdbfa3aceae55e069ba81a0fc17b2026567637603734a387b2fca06c299b4"

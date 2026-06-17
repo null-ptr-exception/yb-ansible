@@ -43,7 +43,8 @@ assert_contains roles/yb-build/tasks/verify.yml '_yb_verify_installed_build == \
 assert_contains .github/workflows/build-shipper.yml 'tags: \${{ env\.REGISTRY }}/\${{ env\.IMAGE_NAME }}:\${{ inputs\.yb_version }}-\${{ inputs\.yb_build }}'
 # shellcheck disable=SC2016
 assert_contains shipper/build.sh 'IMAGE="\${3:-yb-shipper:\${YB_VERSION}-\${YB_BUILD}}"'
-assert_contains molecule/default/create.yml 'CentOS-Stream-GenericCloud-8-latest\.x86_64\.qcow2'
+assert_contains molecule/default/create.yml 'CentOS-Stream-GenericCloud-8-20240429\.0\.x86_64\.qcow2'
+assert_contains molecule/default/create.yml 'base_img_checksum: "sha256:'
 assert_contains molecule/default/create.yml 'MOLECULE_VM_DIR'
 assert_contains molecule/default/destroy.yml 'MOLECULE_VM_DIR'
 assert_contains molecule/default/molecule.yml 'MOLECULE_VM_DIR'

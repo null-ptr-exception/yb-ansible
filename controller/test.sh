@@ -2,9 +2,11 @@
 set -euo pipefail
 
 IMAGE="yb-ansible-controller:test"
+DOCKER_BUILD_ARGS="${DOCKER_BUILD_ARGS:-}"
 
 echo "=== Building controller image ==="
-docker build -t "$IMAGE" "$(dirname "$0")"
+# shellcheck disable=SC2086
+docker build $DOCKER_BUILD_ARGS -t "$IMAGE" "$(dirname "$0")"
 
 echo "=== Verifying tools ==="
 docker run --rm "$IMAGE" bash -c '

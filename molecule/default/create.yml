@@ -6,8 +6,10 @@
   vars:
     vm_prefix: yb-ansible
     vm_dir: "{{ lookup('env', 'MOLECULE_VM_DIR') | default(lookup('env', 'MOLECULE_PROJECT_DIRECTORY') ~ '/.vms', true) }}"
-    base_img: "{{ vm_dir }}/CentOS-Stream-GenericCloud-8-latest.x86_64.qcow2"
-    base_img_url: https://cloud.centos.org/centos/8-stream/x86_64/images/CentOS-Stream-GenericCloud-8-latest.x86_64.qcow2
+    base_img_name: CentOS-Stream-GenericCloud-8-20240429.0.x86_64.qcow2
+    base_img: "{{ vm_dir }}/{{ base_img_name }}"
+    base_img_url: "https://cloud.centos.org/centos/8-stream/x86_64/images/{{ base_img_name }}"
+    base_img_checksum: "sha256:dd4d28d3ff4e1e9e18748fdc1daae1f5502b93663fbd8c0a6072822fd0afd7e5"
     molecule_ssh_user: cloud-user
     molecule_snapshot_name: clean-base-centos-stream8
     ssh_identity_file: "{{ lookup('env', 'MOLECULE_SSH_IDENTITY_FILE') | default(lookup('env', 'HOME') ~ '/.ssh/id_ed25519', true) }}"
@@ -60,6 +62,7 @@
       ansible.builtin.get_url:
         url: "{{ base_img_url }}"
         dest: "{{ base_img }}"
+        checksum: "{{ base_img_checksum }}"
         mode: "0644"
       when: (_cached_img is skipped or _cached_img.rc != 0) and not _base_img.stat.exists
 

@@ -6,6 +6,7 @@ if command -v docker-compose >/dev/null 2>&1; then
 else
     DC='docker compose'
 fi
+DOCKER_BUILD_ARGS="${DOCKER_BUILD_ARGS:-}"
 
 cleanup() {
     echo "=== Cleaning up environment ==="
@@ -61,7 +62,8 @@ verify_replication() {
 }
 
 echo "=== Building controller image ==="
-docker build -t yb-ansible-controller:test controller/
+# shellcheck disable=SC2086
+docker build $DOCKER_BUILD_ARGS -t yb-ansible-controller:test controller/
 
 echo "=== Starting YugabyteDB clusters ==="
 $DC down -v
@@ -81,6 +83,7 @@ echo "=== Running xcluster playbook ==="
 docker exec ansible-controller ansible-playbook -vvv -i inventory.docker.ini playbooks/xcluster.yml \
   -e "xcluster_source_masters=source-master:7100" \
   -e "xcluster_target_masters=target-master:7100" \
+  -e "yb_admin_path=/home/yugabyte/bin/yb-admin" \
   -e '{"xcluster_databases": [{"name": "yugabyte", "type": "ysql"}]}'
 
 echo "=== Verifying Data Replication ==="

@@ -5,6 +5,7 @@ ANSIBLE_PLAYBOOK ?= ansible-playbook
 STATIC_TESTS := \
 	tests/test_rhel8_yb_build_config.sh \
 	tests/test_run_molecule_scenarios.sh \
+	tests/test_static_verifiers_without_rg.sh \
 	tests/test_yb_shipper_2025_build.sh \
 	tests/verify_ansible_builtin_fqcn.sh \
 	tests/verify_external_download_integrity.sh \

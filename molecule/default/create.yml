@@ -44,13 +44,29 @@
       failed_when: false
       changed_when: _cached_img.rc == 0
 
+    - name: Check cached base image checksum
+      ansible.builtin.stat:
+        path: "{{ _cached_img.stdout | trim }}"
+        checksum_algorithm: sha256
+      register: _cached_img_stat
+      when: _cached_img.rc is defined and _cached_img.rc == 0
+
+    - name: Fail if cached base image checksum mismatches
+      ansible.builtin.fail:
+        msg: "Cached base image checksum mismatch for {{ _cached_img.stdout | trim }}"
+      when:
+        - _cached_img.rc is defined and _cached_img.rc == 0
+        - _cached_img_stat.stat.checksum != (base_img_checksum | regex_replace('^sha256:', ''))
+
     - name: Symlink cached image into VM directory
       ansible.builtin.file:
         src: "{{ _cached_img.stdout | trim }}"
         dest: "{{ base_img }}"
         state: link
         force: true
-      when: _cached_img.rc is defined and _cached_img.rc == 0
+      when:
+        - _cached_img.rc is defined and _cached_img.rc == 0
+        - _cached_img_stat.stat.checksum == (base_img_checksum | regex_replace('^sha256:', ''))
 
     - name: Check base image exists
       ansible.builtin.stat:

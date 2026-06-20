@@ -49,13 +49,14 @@ RUN curl -fsSL "https://github.com/mikefarah/yq/releases/download/v${YQ_VERSION}
     && install -m 0755 /tmp/yq /usr/local/bin/yq \
     && rm /tmp/yq
 
-RUN curl -fsSL -o /tmp/s5cmd.tar.gz \
+RUN curl -fsSL --retry 5 --retry-delay 2 --retry-connrefused --connect-timeout 15 \
+      -o /tmp/s5cmd.tar.gz \
       "https://github.com/peak/s5cmd/releases/download/v${S5CMD_VERSION}/s5cmd_${S5CMD_VERSION}_Linux-64bit.tar.gz" \
     && echo "${S5CMD_SHA256}  /tmp/s5cmd.tar.gz" | sha256sum -c - \
     && tar -xzf /tmp/s5cmd.tar.gz -C /usr/local/bin s5cmd \
     && rm /tmp/s5cmd.tar.gz
 
-RUN curl -fsSL \
+RUN curl -fsSL --retry 5 --retry-delay 2 --retry-connrefused --connect-timeout 15 \
       "https://github.com/minio/minio/releases/download/${MINIO_RELEASE}/minio.linux-amd64.${MINIO_RELEASE}" \
       -o /usr/local/bin/minio \
     && echo "${MINIO_SHA256}  /usr/local/bin/minio" | sha256sum -c - \

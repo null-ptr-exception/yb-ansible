@@ -6,8 +6,11 @@ SNAPSHOT_ID=""
 
 if command -v docker-compose >/dev/null 2>&1; then
     DC=docker-compose
-else
+elif docker compose version >/dev/null 2>&1; then
     DC='docker compose'
+else
+    echo "Error: docker-compose or docker compose is required." >&2
+    exit 1
 fi
 
 cleanup() {
@@ -91,7 +94,7 @@ echo "===> Creating snapshot on source..."
 SNAPSHOT_OUT=$(docker exec ansible-controller ansible-playbook -i inventory.docker.ini playbooks/snapshot.yml \
   -e "yb_master_addresses=source-master:7100" \
   -e "yb_admin_path=/home/yugabyte/bin/yb-admin")
-SNAPSHOT_ID=$(echo "$SNAPSHOT_OUT" | grep -oP 'Snapshot ID: \K[a-f0-9-]+' | head -1)
+SNAPSHOT_ID=$(echo "$SNAPSHOT_OUT" | sed -n 's/.*Snapshot ID: \([a-f0-9-][a-f0-9-]*\).*/\1/p' | head -1)
 echo "Snapshot ID: $SNAPSHOT_ID"
 
 echo "===> Backing up source to Minio..."

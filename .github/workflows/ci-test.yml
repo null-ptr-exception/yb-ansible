@@ -44,20 +44,7 @@ jobs:
       - name: Run fast static tests
         run: |
           source .venv/bin/activate
-          for test in \
-            tests/test_rhel8_yb_build_config.sh \
-            tests/test_run_molecule_scenarios.sh \
-            tests/test_static_verifiers_without_rg.sh \
-            tests/test_yb_shipper_2025_build.sh \
-            tests/verify_ansible_builtin_fqcn.sh \
-            tests/verify_external_download_integrity.sh \
-            tests/verify_molecule_ssh_key.sh \
-            tests/verify_playbook_service_names.sh \
-            tests/verify_test_entrypoints.sh \
-            tests/verify_xcluster_replication_id.sh; do
-            bash "$test"
-          done
-          ansible-playbook --syntax-check tests/syntax_check.yml
+          make test-static
 
       - name: Read runner SSH public key
         id: ssh-key

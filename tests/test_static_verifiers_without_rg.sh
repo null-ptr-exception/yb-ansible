@@ -27,7 +27,7 @@ verifiers=(
 for verifier in "${verifiers[@]}"; do
   (
     cd "$repo_root"
-    PATH="$tmp_dir:/usr/bin:/bin" bash "$verifier"
+    PATH="$tmp_dir:$PATH" bash "$verifier"
   ) || fail "$verifier failed without rg"
 done
 

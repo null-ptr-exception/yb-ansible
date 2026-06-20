@@ -31,32 +31,36 @@
         path: "/usr/local/bin/s5cmd"
       register: _s5cmd_system
 
+    - name: Set s5cmd cache key on controller
+      ansible.builtin.set_fact:
+        _s5cmd_cache_dir: "{{ s5cmd_package_cache_dir }}/{{ s5cmd_version }}-{{ s5cmd_checksum | regex_replace('^sha256:', '') }}"
+
     - name: Set up local cache for s5cmd if system path is not available
       when: not (_s5cmd_system.stat.exists and (_s5cmd_system.stat.executable | default(false)))
       block:
         - name: Create local cache directory on controller
           ansible.builtin.file:
-            path: "{{ s5cmd_package_cache_dir }}"
+            path: "{{ _s5cmd_cache_dir }}"
             state: directory
             mode: "0755"
 
         - name: Check if s5cmd is cached on controller
           ansible.builtin.stat:
-            path: "{{ s5cmd_package_cache_dir }}/s5cmd"
+            path: "{{ _s5cmd_cache_dir }}/s5cmd"
           register: _s5cmd_cached
 
         - name: Download s5cmd archive on controller
           ansible.builtin.get_url:
             url: "https://github.com/peak/s5cmd/releases/download/v{{ s5cmd_version }}/s5cmd_{{ s5cmd_version }}_Linux-64bit.tar.gz"
-            dest: "{{ s5cmd_package_cache_dir }}/s5cmd_{{ s5cmd_version }}_Linux-64bit.tar.gz"
+            dest: "{{ _s5cmd_cache_dir }}/s5cmd_{{ s5cmd_version }}_Linux-64bit.tar.gz"
             checksum: "{{ s5cmd_checksum }}"
             mode: "0644"
           when: not _s5cmd_cached.stat.exists
 
         - name: Extract s5cmd on controller
           ansible.builtin.unarchive:
-            src: "{{ s5cmd_package_cache_dir }}/s5cmd_{{ s5cmd_version }}_Linux-64bit.tar.gz"
-            dest: "{{ s5cmd_package_cache_dir }}"
+            src: "{{ _s5cmd_cache_dir }}/s5cmd_{{ s5cmd_version }}_Linux-64bit.tar.gz"
+            dest: "{{ _s5cmd_cache_dir }}"
             remote_src: false
             include:
               - s5cmd
@@ -64,12 +68,12 @@
 
         - name: Ensure cached s5cmd has correct permissions on controller
           ansible.builtin.file:
-            path: "{{ s5cmd_package_cache_dir }}/s5cmd"
+            path: "{{ _s5cmd_cache_dir }}/s5cmd"
             mode: "0755"
 
     - name: Set s5cmd controller binary path fact on controller
       ansible.builtin.set_fact:
-        s5cmd_controller_bin: "{{ (_s5cmd_system.stat.exists and (_s5cmd_system.stat.executable | default(false))) | ternary('/usr/local/bin/s5cmd', s5cmd_package_cache_dir ~ '/s5cmd') }}"
+        s5cmd_controller_bin: "{{ (_s5cmd_system.stat.exists and (_s5cmd_system.stat.executable | default(false))) | ternary('/usr/local/bin/s5cmd', _s5cmd_cache_dir ~ '/s5cmd') }}"
       delegate_facts: true
 
     - name: Share s5cmd controller binary path with all hosts

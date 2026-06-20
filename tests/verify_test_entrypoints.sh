@@ -29,11 +29,8 @@ assert_contains Makefile 'tests/verify_test_entrypoints\.sh'
 assert_contains Makefile '^test-docker-integration:'
 assert_contains Makefile '^test:[[:space:]]+test-static[[:space:]]+test-controller[[:space:]]+test-molecule'
 
-assert_contains .github/workflows/ci-test.yml 'tests/verify_external_download_integrity\.sh'
-assert_contains .github/workflows/ci-test.yml 'tests/test_static_verifiers_without_rg\.sh'
-assert_contains .github/workflows/ci-test.yml 'tests/test_yb_shipper_2025_build\.sh'
+assert_contains .github/workflows/ci-test.yml 'make test-static'
 assert_not_contains .github/workflows/ci-test.yml 'tests/verify_docker_xcluster\.sh'
 assert_not_contains .github/workflows/ci-test.yml 'tests/verify_backup_restore\.sh'
-assert_contains .github/workflows/ci-test.yml 'ansible-playbook --syntax-check tests/syntax_check\.yml'
 
 echo "PASS: fast test entrypoints are wired"

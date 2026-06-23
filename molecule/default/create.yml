@@ -53,10 +53,12 @@
 
     - name: Fail if cached base image checksum mismatches
       ansible.builtin.fail:
-        msg: "Cached base image checksum mismatch for {{ _cached_img.stdout | trim }}"
+        msg: "Cached base image checksum unavailable or mismatched for {{ _cached_img.stdout | trim }}"
       when:
         - _cached_img.rc is defined and _cached_img.rc == 0
-        - _cached_img_stat.stat.checksum != (base_img_checksum | regex_replace('^sha256:', ''))
+        - >-
+          _cached_img_stat.stat.checksum is not defined or
+          _cached_img_stat.stat.checksum != (base_img_checksum | regex_replace('^sha256:', ''))
 
     - name: Symlink cached image into VM directory
       ansible.builtin.file:
@@ -66,6 +68,7 @@
         force: true
       when:
         - _cached_img.rc is defined and _cached_img.rc == 0
+        - _cached_img_stat.stat.checksum is defined
         - _cached_img_stat.stat.checksum == (base_img_checksum | regex_replace('^sha256:', ''))
 
     - name: Check base image exists

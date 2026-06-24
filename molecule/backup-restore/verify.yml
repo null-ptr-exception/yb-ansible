@@ -73,6 +73,8 @@
     molecule_minio_host: "{{ groups['minio'][0] }}"
     molecule_minio_cache_dir: "{{ (lookup('env', 'MOLECULE_PROJECT_DIRECTORY') | default(playbook_dir ~ '/../..', true)) }}/.cache/tools/minio"
     molecule_minio_cache_path: "{{ molecule_minio_cache_dir }}/minio"
+    molecule_minio_release: RELEASE.2025-09-07T16-13-09Z
+    molecule_minio_checksum: "sha256:7c5bd8512c6e966455b1d198209358b2d191c77a83ab377c4073281065fb855f"
     yb_backup_minio_endpoint: "http://{{ hostvars[molecule_minio_host]['ansible_host'] | default(molecule_minio_host) }}:9000"
     yb_backup_minio_access_key: minioadmin
     yb_backup_minio_secret_key: minioadmin
@@ -111,8 +113,9 @@
 
         - name: Download Minio binary to controller cache
           ansible.builtin.get_url:
-            url: https://dl.min.io/server/minio/release/linux-amd64/minio
+            url: "https://github.com/minio/minio/releases/download/{{ molecule_minio_release }}/minio.linux-amd64.{{ molecule_minio_release }}"
             dest: "{{ molecule_minio_cache_path }}"
+            checksum: "{{ molecule_minio_checksum }}"
             mode: "0755"
           delegate_to: localhost
           run_once: true

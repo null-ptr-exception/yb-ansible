@@ -29,10 +29,12 @@ assert_not_contains .github/workflows/build-shipper.yml 'tags: \$\{\{ env\.REGIS
 
 assert_contains shipper/Dockerfile 'ARG YB_VERSION=2025\.2\.3\.2'
 assert_contains shipper/Dockerfile 'ARG YB_BUILD=b1'
+assert_contains shipper/Dockerfile 'ARG YB_SHA256=ea23027f6cc46f0b87123e712f6a0cdbb9676c84d6bc8f4f0124b104de556f97'
 
 assert_contains shipper/build.sh 'IMAGE="\$\{3:-yb-shipper:\$\{YB_VERSION\}-\$\{YB_BUILD\}\}"'
 assert_contains shipper/build.sh '--build-arg "YB_VERSION=\$\{YB_VERSION\}"'
 assert_contains shipper/build.sh '--build-arg "YB_BUILD=\$\{YB_BUILD\}"'
+assert_contains shipper/build.sh '--build-arg "YB_SHA256=\$\{YB_SHA256\}"'
 assert_contains shipper/build.sh '-t "\$\{IMAGE\}"'
 assert_not_contains shipper/build.sh 'ghcr\.io/<org>/yb-shipper:\$\{YB_VERSION\}"$'
 

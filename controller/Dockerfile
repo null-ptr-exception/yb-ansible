@@ -3,6 +3,10 @@ FROM python:3.12-slim
 ARG CRANE_VERSION=0.21.5
 ARG DOCKER_VERSION=26.1.1
 ARG DOCKER_SHA256=c0ef0ee7d00deb803a6f5fa78d83ec8cbe1848eaaea9fb7071364d526624278f
+ARG S5CMD_VERSION=2.3.0
+ARG S5CMD_SHA256=de0fdbfa3aceae55e069ba81a0fc17b2026567637603734a387b2fca06c299b4
+ARG MINIO_RELEASE=RELEASE.2025-09-07T16-13-09Z
+ARG MINIO_SHA256=7c5bd8512c6e966455b1d198209358b2d191c77a83ab377c4073281065fb855f
 
 RUN apt-get update -qq \
     && apt-get install -y -qq --no-install-recommends \
@@ -45,9 +49,17 @@ RUN curl -fsSL "https://github.com/mikefarah/yq/releases/download/v${YQ_VERSION}
     && install -m 0755 /tmp/yq /usr/local/bin/yq \
     && rm /tmp/yq
 
-RUN curl -fsSL "https://github.com/peak/s5cmd/releases/download/v2.3.0/s5cmd_2.3.0_Linux-64bit.tar.gz" | tar -xz -C /usr/local/bin s5cmd
+RUN curl -fsSL --retry 5 --retry-delay 2 --retry-connrefused --connect-timeout 15 \
+      -o /tmp/s5cmd.tar.gz \
+      "https://github.com/peak/s5cmd/releases/download/v${S5CMD_VERSION}/s5cmd_${S5CMD_VERSION}_Linux-64bit.tar.gz" \
+    && echo "${S5CMD_SHA256}  /tmp/s5cmd.tar.gz" | sha256sum -c - \
+    && tar -xzf /tmp/s5cmd.tar.gz -C /usr/local/bin s5cmd \
+    && rm /tmp/s5cmd.tar.gz
 
-RUN curl -fsSL "https://dl.min.io/server/minio/release/linux-amd64/minio" -o /usr/local/bin/minio \
+RUN curl -fsSL --retry 5 --retry-delay 2 --retry-connrefused --connect-timeout 15 \
+      "https://github.com/minio/minio/releases/download/${MINIO_RELEASE}/minio.linux-amd64.${MINIO_RELEASE}" \
+      -o /usr/local/bin/minio \
+    && echo "${MINIO_SHA256}  /usr/local/bin/minio" | sha256sum -c - \
     && chmod +x /usr/local/bin/minio
 
 RUN pip install --no-cache-dir 'ansible-core>=2.16,<2.17' docker \

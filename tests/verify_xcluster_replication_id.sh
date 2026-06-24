@@ -10,14 +10,14 @@ assert_contains() {
   local file="$1"
   local pattern="$2"
 
-  rg -Fn "$pattern" "$file" >/dev/null || fail "$file does not contain: $pattern"
+  grep -F -n -- "$pattern" "$file" >/dev/null || fail "$file does not contain: $pattern"
 }
 
 assert_not_contains() {
   local file="$1"
   local pattern="$2"
 
-  if rg -Fn "$pattern" "$file" >/dev/null; then
+  if grep -F -n -- "$pattern" "$file" >/dev/null; then
     fail "$file unexpectedly contains: $pattern"
   fi
 }

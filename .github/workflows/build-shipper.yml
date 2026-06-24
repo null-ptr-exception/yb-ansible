@@ -11,6 +11,10 @@ on:
         description: "Build number (e.g. b11)"
         required: true
         default: "b1"
+      yb_sha256:
+        description: "Expected SHA256 for the YugabyteDB tarball"
+        required: true
+        default: "ea23027f6cc46f0b87123e712f6a0cdbb9676c84d6bc8f4f0124b104de556f97"
 
 env:
   REGISTRY: ghcr.io
@@ -39,4 +43,5 @@ jobs:
           build-args: |
             YB_VERSION=${{ inputs.yb_version }}
             YB_BUILD=${{ inputs.yb_build }}
+            YB_SHA256=${{ inputs.yb_sha256 }}
           tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ inputs.yb_version }}-${{ inputs.yb_build }}

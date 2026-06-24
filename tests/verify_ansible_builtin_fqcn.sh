@@ -6,7 +6,12 @@ fail() {
   exit 1
 }
 
-matches="$(rg -n '^[[:space:]]+(debug|set_fact|command|fail|import_tasks):' roles playbooks molecule || true)"
+matches="$(
+  grep -R -I -s -n -E \
+    --exclude-dir=.cache \
+    '^[[:space:]]+(debug|set_fact|command|fail|import_tasks):' \
+    roles playbooks molecule || true
+)"
 
 if [ -n "$matches" ]; then
   echo "$matches" >&2
